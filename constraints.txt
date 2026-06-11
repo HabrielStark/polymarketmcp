@@ -1,0 +1,85 @@
+# Hermes-PM — dependency lock (constraints)
+#
+# Exact, fully-resolved versions of the environment in which the test suite is
+# verified green (211 passed). Use as a constraints file for reproducible
+# installs:
+#
+#   pip install -e ".[dev]" --constraint constraints.txt
+#
+# Notes:
+#   * This is a constraints file: a line only pins a version IF that package is
+#     actually being installed, so the extra dev/optional entries below are inert
+#     when you install a smaller subset (e.g. runtime-only).
+#   * pywin32 / pywin32-ctypes are Windows-only (pulled in by the optional
+#     `keyring` backend on Windows); they are ignored on other platforms.
+#   * Regenerate after intentional upgrades with:
+#       pip freeze --exclude-editable > constraints.txt
+#     (then re-add this header).
+
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.13.0
+attrs==26.1.0
+backports.tarfile==1.2.0
+certifi==2026.5.20
+cffi==2.0.0
+click==8.4.1
+colorama==0.4.6
+coverage==7.14.1
+cryptography==48.0.0
+fastapi==0.136.3
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+httpx-sse==0.4.3
+hypothesis==6.155.1
+idna==3.17
+importlib_metadata==9.0.0
+iniconfig==2.3.0
+jaraco.classes==3.4.0
+jaraco.context==6.1.2
+jaraco.functools==4.5.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+keyring==25.7.0
+libcst==1.8.6
+linkify-it-py==2.1.0
+markdown-it-py==4.2.0
+mcp==1.27.2
+mdit-py-plugins==0.6.1
+mdurl==0.1.2
+more-itertools==11.1.0
+mutmut==3.5.0
+packaging==26.2
+platformdirs==4.10.0
+pluggy==1.6.0
+prometheus_client==0.25.0
+pycparser==3.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+pydantic_core==2.46.4
+Pygments==2.20.0
+PyJWT==2.13.0
+pytest==9.0.3
+pytest-asyncio==1.4.0
+pytest-timeout==2.4.0
+python-dotenv==1.2.2
+python-multipart==0.0.29
+pywin32==311
+pywin32-ctypes==0.2.3
+PyYAML==6.0.3
+referencing==0.37.0
+rich==15.0.0
+rpds-py==2026.5.1
+ruff==0.15.15
+setproctitle==1.3.7
+sortedcontainers==2.4.0
+sse-starlette==3.4.4
+starlette==1.2.1
+textual==8.2.7
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+uc-micro-py==2.0.0
+uvicorn==0.48.0
+websockets==16.0
+zipp==4.1.0

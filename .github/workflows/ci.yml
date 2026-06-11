@@ -1,0 +1,60 @@
+name: CI
+
+# Continuous integration for Hermes-PM.
+#
+# Runs on the exact environment the 211-test suite is verified green on:
+# Windows + Python 3.11. Actions are pinned by commit SHA (supply-chain
+# hardening — a moving tag could be repointed at malicious code), and the
+# workflow token is least-privilege (read-only). No secrets are used, so it is
+# safe to run on pull requests from forks.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ruff + pytest (windows / py3.11)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            constraints.txt
+
+      - name: Install (versions pinned via constraints.txt)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" --constraint constraints.txt
+
+      - name: Lint (ruff)
+        run: python -m ruff check src tests
+
+      - name: Tests (full functional suite)
+        # Excludes the latency micro-benchmarks: they assert wall-clock p95
+        # targets that are unreliable on shared CI runners. They remain part of
+        # the suite and run locally via `pytest tests/latency -q`.
+        run: python -m pytest -q -m "not latency"
+
+      - name: Latency benchmarks (informational)
+        # Timing-sensitive; reported but never fails the build.
+        continue-on-error: true
+        run: python -m pytest -q -m latency

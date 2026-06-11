@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+
+# Virtual env
+.venv/
+
+# Local runtime data (SQLite ledger/audit, Hermes memory exports)
+.hermes_pm_data/
+.hermes_pm_data_*/
+.hermes_pm_demo/
+.hermes_pm_dash/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Scratch / dev probes (ad-hoc debugging scripts and their data dirs)
+_scratch_*.py
+_probe_*
+_audit_attack*
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+secrets.enc

@@ -20,6 +20,14 @@ Each fix ships with a failure-injecting test.
 - **`Campaign` accepted non-finite/non-positive `bankroll`/`duration_hours`**,
   which silently poisoned position sizing and could crash `end_ms`
   (`int(nan)`/`int(inf)`). Now rejected at construction.
+- **A paper fill was not atomic.** `_apply_fill` committed position, cash, the
+  four ledger postings, the fill record and the order across *five separate*
+  SQLite commits — a failure or crash mid-fill (e.g. an unbalanced `Ledger.post`)
+  left cash, ledger and position permanently diverged. Added a re-entrant
+  `Database.transaction()` (suppresses intermediate commits, commits once, rolls
+  back on any exception); `_apply_fill` and `init_campaign` now write all money
+  state in one transaction, with the in-memory order and audit/events updated only
+  after commit. (tests/unit/test_atomic_fill.py)
 
 ### Hardened
 
@@ -44,7 +52,7 @@ Each fix ships with a failure-injecting test.
 
 ### Tests
 
-- Suite grew from 211 to **278** (67 new failure-injection tests). ruff clean.
+- Suite grew from 211 to **283** (72 new failure-injection tests). ruff clean.
 
 ## [0.1.0] - 2026-06-11
 

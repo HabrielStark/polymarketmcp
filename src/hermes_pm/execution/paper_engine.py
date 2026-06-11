@@ -70,12 +70,15 @@ class PaperEngine:
 
     def init_campaign(self, campaign: Campaign) -> None:
         if self.db.kv_get(self._cash_key(campaign.campaign_id)) is None:
-            self.db.kv_set(self._cash_key(campaign.campaign_id), campaign.bankroll)
-            self.db.kv_set(self._peak_key(campaign.campaign_id), campaign.bankroll)
-            Ledger(self.db, campaign.campaign_id).post(
-                [Posting(CASH, campaign.bankroll, "opening balance"),
-                 Posting("equity", -campaign.bankroll, "opening balance")]
-            )
+            # Opening balance is itself a money mutation: cash, peak and the
+            # opening ledger posting must land together or not at all.
+            with self.db.transaction():
+                self.db.kv_set(self._cash_key(campaign.campaign_id), campaign.bankroll)
+                self.db.kv_set(self._peak_key(campaign.campaign_id), campaign.bankroll)
+                Ledger(self.db, campaign.campaign_id).post(
+                    [Posting(CASH, campaign.bankroll, "opening balance"),
+                     Posting("equity", -campaign.bankroll, "opening balance")]
+                )
 
     def cash(self, cid: str) -> float:
         return float(self.db.kv_get(self._cash_key(cid), 0.0))
@@ -211,43 +214,57 @@ class PaperEngine:
         shares = round(fill_usd / price, 6) if price > 0 else 0.0
         signed = shares if order.side is Side.BUY else -shares
         fee = round(fill_usd * self.policy.fee_bps / 10_000.0, 6)
-
-        pos = self.db.get_position(order.campaign_id, order.token_id) or Position(
-            campaign_id=order.campaign_id, market_id=order.market_id,
-            token_id=order.token_id, outcome="",
-        )
-        basis_before = pos.shares * pos.avg_price
-        self._apply_position(pos, signed, price)
-        basis_after = pos.shares * pos.avg_price
-        pos.close_status = CloseStatus.CLOSED if abs(pos.shares) < 1e-9 else CloseStatus.OPEN
-        self.db.upsert_position(pos)
-
-        # Cash + balanced double-entry postings. Round each known leg to 6
-        # decimals, then make REALIZED the balancing plug so the transaction
-        # sums to exactly zero regardless of share/price rounding (the plug
-        # equals -realized up to sub-microdollar rounding).
-        cash6 = round(-signed * price - fee, 6)
-        basis6 = round(basis_after - basis_before, 6)
-        fee6 = round(fee, 6)
-        realized6 = round(-(cash6 + basis6 + fee6), 6)
-        self.db.kv_add(self._cash_key(order.campaign_id), cash6, default=0.0)
-        Ledger(self.db, order.campaign_id).post(
-            [
-                Posting(CASH, cash6, reason),
-                Posting(position_account(order.token_id), basis6, reason),
-                Posting(FEES, fee6, "fee"),
-                Posting(REALIZED, realized6, "realized"),
-            ]
-        )
-
         fill = Fill(
             order_id=order.order_id, price=price, size_usd=round(fill_usd, 6), shares=shares,
             simulated_or_real="simulated", liquidity_source=reason, snapshot_id=snapshot_id,
             reason=reason,
         )
+
+        # ---- ATOMIC money mutation (FR-PAPER-004) ----------------------------
+        # position + cash + the 4 balanced ledger postings + fill record + the
+        # order's running fill-state all commit together, or not at all. A failure
+        # anywhere (e.g. Ledger.post rejecting an unbalanced set) rolls the whole
+        # thing back, so cash, ledger and position can never diverge. The live
+        # ``order`` object and audit/events are only touched AFTER the commit, so a
+        # rollback leaves both the database and in-memory state consistent.
+        with self.db.transaction():
+            pos = self.db.get_position(order.campaign_id, order.token_id) or Position(
+                campaign_id=order.campaign_id, market_id=order.market_id,
+                token_id=order.token_id, outcome="",
+            )
+            basis_before = pos.shares * pos.avg_price
+            self._apply_position(pos, signed, price)
+            basis_after = pos.shares * pos.avg_price
+            pos.close_status = CloseStatus.CLOSED if abs(pos.shares) < 1e-9 else CloseStatus.OPEN
+            self.db.upsert_position(pos)
+
+            # Round each known leg to 6 decimals, then make REALIZED the balancing
+            # plug so the transaction sums to exactly zero regardless of rounding.
+            cash6 = round(-signed * price - fee, 6)
+            basis6 = round(basis_after - basis_before, 6)
+            fee6 = round(fee, 6)
+            realized6 = round(-(cash6 + basis6 + fee6), 6)
+            self.db.kv_add(self._cash_key(order.campaign_id), cash6, default=0.0)
+            Ledger(self.db, order.campaign_id).post(
+                [
+                    Posting(CASH, cash6, reason),
+                    Posting(position_account(order.token_id), basis6, reason),
+                    Posting(FEES, fee6, "fee"),
+                    Posting(REALIZED, realized6, "realized"),
+                ]
+            )
+
+            self.db.save_fill(fill)
+            new_filled = round(order.filled_size_usd + fill_usd, 6)
+            # Persist the order's running fill state in the SAME unit of work, via a
+            # copy, so the live object stays untouched until the commit succeeds.
+            self.db.save_order(order.model_copy(update={
+                "fills": [*order.fills, fill], "filled_size_usd": new_filled,
+            }))
+
+        # ---- commit succeeded: reflect in live state + emit observation ------
         order.fills.append(fill)
-        order.filled_size_usd = round(order.filled_size_usd + fill_usd, 6)
-        self.db.save_fill(fill)
+        order.filled_size_usd = new_filled
         self.audit.append(
             EventType.FILL, actor="paper_engine", summary=f"paper fill {shares}@{price}",
             outputs=fill.model_dump(mode="json"), campaign_id=order.campaign_id,

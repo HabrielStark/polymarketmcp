@@ -10,6 +10,7 @@ are in-memory), so a single connection guarded by a re-entrant lock is used."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import threading
@@ -89,6 +90,7 @@ class Database:
     def __init__(self, path: str | Path = ":memory:") -> None:
         self.path = str(path)
         self._lock = threading.RLock()
+        self._in_txn = False
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         with self._lock:
@@ -102,11 +104,37 @@ class Database:
         with self._lock:
             self._conn.close()
 
+    @contextlib.contextmanager
+    def transaction(self):
+        """Group multiple writes into ONE atomic unit of work.
+
+        While inside, ``execute``/``kv_add`` suppress their per-statement commit;
+        the whole block commits once on success and rolls back entirely on ANY
+        exception (so a mid-fill failure can never leave cash, ledger and position
+        diverged — the core money invariant). Re-entrant: a nested call joins the
+        outermost transaction. The connection lock is held for the whole block,
+        serialising it against every other DB user."""
+        with self._lock:
+            if self._in_txn:
+                yield self  # join the enclosing transaction
+                return
+            self._in_txn = True
+            try:
+                yield self
+            except BaseException:
+                self._conn.rollback()
+                raise
+            else:
+                self._conn.commit()
+            finally:
+                self._in_txn = False
+
     # -- low-level ---------------------------------------------------------- #
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock:
             cur = self._conn.execute(sql, params)
-            self._conn.commit()
+            if not self._in_txn:
+                self._conn.commit()
             return cur
 
     def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
@@ -140,7 +168,8 @@ class Database:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, json.dumps(new)),
             )
-            self._conn.commit()
+            if not self._in_txn:
+                self._conn.commit()
             return new
 
     # -- campaigns ---------------------------------------------------------- #

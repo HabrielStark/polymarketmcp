@@ -38,6 +38,12 @@ Each fix ships with a failure-injecting test.
   marked copy. `mark_to_market` now holds the engine lock for the whole
   read-modify-write — proven to fail 5/5 without the fix.
   (tests/chaos/test_concurrency_stress.py)
+- **Non-constant-time token comparison (timing side channel).** The dashboard
+  REST + WebSocket gates and the MCP HTTP bearer check compared tokens with `!=`,
+  leaking via response timing how many leading characters matched (enough to
+  recover a token byte-by-byte when exposed beyond localhost). Replaced with
+  `hmac.compare_digest` via `util.security.tokens_match`, fail-closed when no
+  token is configured. (tests/security/test_constant_time_auth.py)
 
 ### Hardened
 
@@ -70,8 +76,8 @@ Each fix ships with a failure-injecting test.
 
 ### Tests
 
-- Suite grew from 211 to **296** (85 new failure-injection / stress / crash tests).
-  ruff clean.
+- Suite grew from 211 to **317** (106 new failure-injection / stress / crash /
+  concurrency / security tests). ruff clean.
 
 ## [0.1.0] - 2026-06-11
 

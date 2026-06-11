@@ -16,13 +16,15 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from hermes_pm.config import Settings, load_settings
 from hermes_pm.daemon.core import TradingDaemon
 from hermes_pm.dashboard.ui import INDEX_HTML
+from hermes_pm.util.security import tokens_match
 from hermes_pm.util.timeutil import now_ms
 
 
 def _check_token(settings: Settings, token: str | None) -> None:
     # Local-only by default; require a token only when exposed beyond localhost.
+    # Constant-time compare so a remote attacker can't recover the token by timing.
     if settings.dashboard_host not in ("127.0.0.1", "localhost", "::1"):
-        if not settings.dashboard_token or token != settings.dashboard_token:
+        if not tokens_match(settings.dashboard_token, token):
             raise HTTPException(status_code=401, detail="dashboard access token required")
 
 
@@ -124,7 +126,7 @@ def create_app(daemon: TradingDaemon) -> FastAPI:
         # Enforce the same token policy as REST when not bound to localhost.
         if s.dashboard_host not in ("127.0.0.1", "localhost", "::1"):
             token = websocket.query_params.get("token")
-            if not s.dashboard_token or token != s.dashboard_token:
+            if not tokens_match(s.dashboard_token, token):
                 await websocket.close(code=1008)
                 return
         await websocket.accept()

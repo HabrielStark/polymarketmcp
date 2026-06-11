@@ -23,6 +23,7 @@ from starlette.routing import Mount
 from hermes_pm.config import Settings, load_settings
 from hermes_pm.daemon.core import TradingDaemon
 from hermes_pm.mcp.server import build_server
+from hermes_pm.util.security import tokens_match
 
 
 def _security_settings(s: Settings) -> TransportSecuritySettings:
@@ -49,7 +50,7 @@ def create_http_app(daemon: TradingDaemon) -> Starlette:
         token = s.mcp_http_token
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         if token:
-            if headers.get("authorization") != f"Bearer {token}":
+            if not tokens_match(f"Bearer {token}", headers.get("authorization")):
                 resp = JSONResponse({"error": "unauthorized"}, status_code=401)
                 await resp(scope, receive, send)
                 return

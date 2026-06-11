@@ -20,6 +20,7 @@ Protocol (one JSON object per line):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -91,12 +92,29 @@ if __name__ == "__main__":
 class LiveProcessClient:
     """Spawns and drives the isolated live-adapter process. The main daemon uses
     this instead of an in-process adapter when ``live_process_isolation`` is set,
-    so secrets/keys never reside in the daemon's address space."""
+    so secrets/keys never reside in the daemon's address space.
+
+    Resilience (a hung or crashed child must never wedge the daemon):
+      * every RPC is bounded by ``_timeout`` — a child that stops responding is
+        killed and the call returns a clean error instead of blocking forever;
+      * a child that has exited (EOF) or a broken pipe is detected, reaped, and
+        the next call transparently respawns a fresh child;
+      * all of the above happens under a single lock so concurrent callers cannot
+        interleave writes/reads on the pipe.
+    """
+
+    #: Default per-RPC timeout (seconds). The adapter does only fast, local work
+    #: (it is compliance-locked), so a slow response means a stuck child.
+    RPC_TIMEOUT = 10.0
 
     def __init__(self, settings) -> None:
         self._s = settings
         self._proc: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
+        self._timeout = float(getattr(settings, "live_rpc_timeout_s", self.RPC_TIMEOUT))
+        #: Number of RPCs that faulted (timeout / crash / pipe error) and forced
+        #: a child to be reaped. A climbing value is the signal to alarm on.
+        self.faults = 0
 
     def _child_env(self) -> dict[str, str]:
         env = dict(os.environ)
@@ -113,24 +131,75 @@ class LiveProcessClient:
             env["HPM_SECRET_MASTER_PASSPHRASE"] = self._s.secret_master_passphrase
         return env
 
+    @staticmethod
+    def _error(message: str) -> dict[str, Any]:
+        return {"ok": False, "error": message}
+
+    def _alive(self) -> bool:
+        return self._proc is not None and self._proc.returncode is None
+
     async def start(self) -> None:
-        if self._proc is not None:
+        async with self._lock:
+            await self._ensure_started_locked()
+
+    async def _ensure_started_locked(self) -> None:
+        """Spawn a child if none is running. Caller must hold ``self._lock``."""
+        if self._alive():
             return
+        if self._proc is not None:  # a dead handle is lingering — reap it first
+            await self._terminate_locked()
         self._proc = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "hermes_pm.execution.live_process",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             env=self._child_env(),
         )
 
+    async def _terminate_locked(self) -> None:
+        """Kill and reap the current child (best-effort). Caller holds the lock."""
+        proc, self._proc = self._proc, None
+        if proc is None:
+            return
+        with contextlib.suppress(Exception):
+            if proc.returncode is None:
+                proc.kill()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+
     async def _rpc(self, msg: dict[str, Any]) -> dict[str, Any]:
-        if self._proc is None:
-            await self.start()
         async with self._lock:
-            assert self._proc and self._proc.stdin and self._proc.stdout
-            self._proc.stdin.write((json.dumps(msg) + "\n").encode("utf-8"))
-            await self._proc.stdin.drain()
-            line = await self._proc.stdout.readline()
-        return json.loads(line.decode("utf-8")) if line else {"ok": False, "error": "no response"}
+            try:
+                await self._ensure_started_locked()
+            except Exception as exc:  # noqa: BLE001 - spawning the child can fail
+                self.faults += 1
+                await self._terminate_locked()
+                return self._error(f"live process failed to start: {exc}")
+
+            proc = self._proc
+            if proc is None or proc.stdin is None or proc.stdout is None:
+                return self._error("live process unavailable")
+
+            try:
+                proc.stdin.write((json.dumps(msg) + "\n").encode("utf-8"))
+                await asyncio.wait_for(proc.stdin.drain(), timeout=self._timeout)
+                line = await asyncio.wait_for(proc.stdout.readline(), timeout=self._timeout)
+            except TimeoutError:
+                # Hung child: kill it so the NEXT call gets a fresh process.
+                self.faults += 1
+                await self._terminate_locked()
+                return self._error("live process timed out and was terminated")
+            except (BrokenPipeError, ConnectionResetError, OSError) as exc:
+                self.faults += 1
+                await self._terminate_locked()
+                return self._error(f"live process pipe error: {exc}")
+
+            if not line:  # EOF — the child exited/crashed without replying
+                self.faults += 1
+                await self._terminate_locked()
+                return self._error("live process exited without responding")
+            try:
+                return json.loads(line.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return self._error("live process returned a malformed response")
 
     async def vault_status(self) -> dict[str, Any]:
         return (await self._rpc({"cmd": "status"})).get("vault", {})
@@ -148,15 +217,14 @@ class LiveProcessClient:
 
     async def get_open_orders(self) -> list[dict[str, Any]]:
         r = await self._rpc({"cmd": "open_orders"})
-        return r.get("result", [])
+        return r.get("result", []) if r.get("ok", True) else []
 
     async def stop(self) -> None:
-        if self._proc is None:
-            return
-        with __import__("contextlib").suppress(Exception):
-            self._proc.stdin.write(b'{"cmd": "shutdown"}\n')
-            await self._proc.stdin.drain()
-            await asyncio.wait_for(self._proc.wait(), timeout=5)
-        if self._proc.returncode is None:
-            self._proc.kill()
-        self._proc = None
+        async with self._lock:
+            proc = self._proc
+            if proc is not None and proc.returncode is None and proc.stdin is not None:
+                with contextlib.suppress(Exception):
+                    proc.stdin.write(b'{"cmd": "shutdown"}\n')
+                    await asyncio.wait_for(proc.stdin.drain(), timeout=2.0)
+                    await asyncio.wait_for(proc.wait(), timeout=5.0)
+            await self._terminate_locked()

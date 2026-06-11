@@ -21,30 +21,33 @@ class RiskPolicy(BaseModel):
     model_config = {"frozen": True, "extra": "forbid"}
 
     # Exposure / sizing (fractions of paper bankroll) — SRS 14.1.
-    max_single_trade_risk_pct: float = 0.01
-    max_market_exposure_pct: float = 0.05
-    max_category_exposure_pct: float = 0.15
-    max_correlated_exposure_pct: float = 0.20
+    max_single_trade_risk_pct: float = Field(default=0.01, ge=0.0, le=1.0, allow_inf_nan=False)
+    max_market_exposure_pct: float = Field(default=0.05, ge=0.0, le=1.0, allow_inf_nan=False)
+    max_category_exposure_pct: float = Field(default=0.15, ge=0.0, le=1.0, allow_inf_nan=False)
+    max_correlated_exposure_pct: float = Field(default=0.20, ge=0.0, le=1.0, allow_inf_nan=False)
 
     # Loss stops (fractions of bankroll).
-    daily_loss_stop_pct: float = 0.05
-    campaign_loss_stop_pct: float = 0.10
+    daily_loss_stop_pct: float = Field(default=0.05, ge=0.0, le=1.0, allow_inf_nan=False)
+    campaign_loss_stop_pct: float = Field(default=0.10, ge=0.0, le=1.0, allow_inf_nan=False)
 
     # Microstructure gates.
-    min_orderbook_depth_usd: float = 200.0
-    max_spread: float = 0.05  # absolute, in probability/price units (0..1)
-    max_data_staleness_ms: int = 5_000
+    min_orderbook_depth_usd: float = Field(default=200.0, ge=0.0, allow_inf_nan=False)
+    max_spread: float = Field(default=0.05, ge=0.0, le=1.0, allow_inf_nan=False)  # 0..1 price units
+    max_data_staleness_ms: int = Field(default=5_000, ge=0)
 
-    # Evidence quality (FR-RISK-004, 14.1 minimum evidence count).
-    min_primary_sources: int = 1
-    min_secondary_sources: int = 2
+    # Evidence quality (FR-RISK-004, 14.1 minimum evidence count). No upper bound on
+    # the floors below: a higher floor only makes the policy *stricter*, never looser.
+    min_primary_sources: int = Field(default=1, ge=0)
+    min_secondary_sources: int = Field(default=2, ge=0)
     require_thesis_and_counter_thesis: bool = True
-    min_confidence: float = 0.0
-    max_source_age_ratio: float = 0.5  # source age must be < ratio * time-to-resolution
+    min_confidence: float = Field(default=0.0, ge=0.0, allow_inf_nan=False)
+    max_source_age_ratio: float = Field(default=0.5, ge=0.0, allow_inf_nan=False)
 
     # Cost / fill model used for EV and break-even (FR-TI-004, FR-PAPER-002).
-    fee_bps: float = 0.0  # Polymarket has no maker/taker fee by default
-    slippage_bps: float = 50.0  # pessimistic execution-cost assumption (FR-PAPER-006)
+    # bps are floored at 0 so costs can never be made *optimistic* (a negative
+    # slippage would silently inflate EV and undermine the risk guarantee).
+    fee_bps: float = Field(default=0.0, ge=0.0, allow_inf_nan=False)
+    slippage_bps: float = Field(default=50.0, ge=0.0, allow_inf_nan=False)
 
     # Hard guards (FR-RISK-003, 14.2).
     allow_martingale: bool = False

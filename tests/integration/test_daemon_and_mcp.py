@@ -77,3 +77,42 @@ async def test_mcp_schema_rejects_unknown_and_missing(daemon):
         assert bad["error"]["code"] == "schema_rejected"
         missing = _payload(await client.call_tool("get_market_details", {}))
         assert missing["error"]["code"] == "schema_rejected"
+
+
+async def test_mcp_maps_out_of_range_numeric_to_clean_validation_error(daemon):
+    # limit_price is schema-typed as a bare number (no min/max), so 5.0 passes the
+    # JSON-Schema gate and reaches the model layer, where TradeIntent(le=1.0)
+    # raises a *pydantic* ValidationError. That must surface as a clean tool error
+    # — not an unhandled exception that crashes the stdio server.
+    camp = daemon.start_paper_campaign(
+        campaign_name="b", duration_hours=24, paper_bankroll_usd=500,
+        market_filters={"categories": ["weather", "sports"]},
+    )
+    cid, mid = camp["campaign_id"], camp["watchlist"][0]
+    server = build_server(daemon)
+    async with connect(server) as client:
+        await client.initialize()
+        out = _payload(await client.call_tool("propose_trade_intent", {
+            "campaign_id": cid, "market_id": mid, "outcome": "YES", "side": "BUY",
+            "limit_price": 5.0, "max_size_usd": 10, "thesis": "t", "counter_thesis": "c",
+            "invalidation_criteria": "i", "evidence_refs": [], "confidence": 0.5,
+            "expires_at": "2026-12-30T00:00:00Z",
+        }))
+        assert "error" in out, out
+        assert out["error"]["code"] == "validation_error"
+        assert "limit_price" in out["error"]["message"]
+
+
+async def test_mcp_tool_boundary_never_leaks_unhandled_exception(daemon, monkeypatch):
+    # If a daemon method raises something unexpected, the boundary must return a
+    # generic internal_error (logged to stderr) — never propagate a raw traceback.
+    def boom(**_kw):
+        raise RuntimeError("unexpected internal failure with secret=abc123")
+
+    monkeypatch.setattr(daemon, "get_system_status", boom)
+    server = build_server(daemon)
+    async with connect(server) as client:
+        await client.initialize()
+        out = _payload(await client.call_tool("get_system_status", {}))
+        assert out["error"]["code"] == "internal_error"
+        assert "secret=abc123" not in out["error"]["message"]  # no internal/secret leakage

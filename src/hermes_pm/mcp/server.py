@@ -15,6 +15,7 @@ import sys
 import jsonschema
 import mcp.types as types
 from mcp.server.lowlevel import Server
+from pydantic import ValidationError as PydanticValidationError
 
 from hermes_pm.config import Settings, load_settings
 from hermes_pm.daemon.core import TradingDaemon
@@ -64,9 +65,25 @@ def build_server(daemon: TradingDaemon) -> Server:
             return [types.TextContent(type="text", text=_json(result))]
         except HermesPMError as exc:
             return [types.TextContent(type="text", text=_json({"error": exc.to_dict()}))]
+        except PydanticValidationError as exc:
+            # Out-of-range / non-finite / wrong-typed numeric args reach the model
+            # layer and raise here. Surface a compact, structured rejection instead
+            # of letting a pydantic traceback escape the tool boundary.
+            reasons = "; ".join(
+                f"{'/'.join(str(p) for p in e['loc']) or '<root>'}: {e['msg']}"
+                for e in exc.errors()
+            )
+            return [types.TextContent(type="text", text=_json(
+                {"error": {"code": "validation_error", "message": reasons}}))]
         except (TypeError, ValueError) as exc:
             return [types.TextContent(type="text", text=_json(
                 {"error": {"code": "bad_request", "message": str(exc)}}))]
+        except Exception as exc:  # noqa: BLE001 - the tool boundary must never crash the server
+            # Log the detail to stderr for diagnosis; return a generic message so
+            # internal state (and any secrets in it) is never leaked to the client.
+            print(f"[mcp] tool {name!r} internal error: {exc!r}", file=sys.stderr)
+            return [types.TextContent(type="text", text=_json(
+                {"error": {"code": "internal_error", "message": "internal error"}}))]
 
     @server.list_resources()
     async def list_resources() -> list[types.Resource]:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import sys
 
 from hermes_pm.config import Settings
 from hermes_pm.data.cache import OrderBookCache
@@ -41,6 +42,11 @@ class MarketDataEngine:
         self._running = False
         self.reconnects = 0
         self.gaps_detected = 0
+        #: transient per-token reconcile errors (observable, not silently swallowed)
+        self.reconcile_errors = 0
+        #: times a supervised background loop crashed and had to be restarted
+        self.loop_failures = 0
+        self._loop_backoff = 0.5
 
     @property
     def markets(self) -> list[Market]:
@@ -72,8 +78,12 @@ class MarketDataEngine:
             ]
             await self.subscribe(tokens)
         self._tasks = [
-            asyncio.create_task(self._reconcile_loop(), name="md-reconcile"),
-            asyncio.create_task(self._staleness_loop(), name="md-staleness"),
+            asyncio.create_task(
+                self._supervised(self._reconcile_loop, "reconcile"), name="md-reconcile"
+            ),
+            asyncio.create_task(
+                self._supervised(self._staleness_loop, "staleness"), name="md-staleness"
+            ),
         ]
 
     async def subscribe(self, token_ids: list[str]) -> None:
@@ -135,25 +145,63 @@ class MarketDataEngine:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 10.0)
 
+    async def _supervised(self, loop_factory, name: str) -> None:
+        """Run a background loop so an unexpected exception can never silently
+        kill the subsystem. On crash: count it, log to stderr, back off, restart.
+
+        This matters most for the staleness loop — if it died silently the cache
+        would stop being flagged stale and the risk engine could approve trades on
+        dead data (FR-DATA-004 / NFR-REL-003)."""
+        backoff = self._loop_backoff
+        while self._running:
+            try:
+                await loop_factory()
+                return  # clean, intentional completion (e.g. _running went False)
+            except asyncio.CancelledError:
+                raise  # cooperative shutdown — propagate, do not restart
+            except Exception as exc:  # noqa: BLE001 - a safety loop must not die silently
+                self.loop_failures += 1
+                print(
+                    f"[market_data] supervised loop {name!r} crashed: {exc!r} — "
+                    f"restarting in {backoff:.2f}s (failures={self.loop_failures})",
+                    file=sys.stderr,
+                )
+                try:
+                    await asyncio.sleep(backoff)
+                except asyncio.CancelledError:
+                    raise
+                backoff = min(backoff * 2, 10.0)
+
     async def _reconcile_loop(self) -> None:
         interval = max(0.5, self._s.reconcile_interval_ms / 1000)
         while self._running:
             await asyncio.sleep(interval)
-            for tid in list(self._subscribed):
-                with contextlib.suppress(Exception):
-                    fresh = await self._source.snapshot(tid)
-                    if fresh is None:
-                        continue
-                    cached = self._cache.get(tid)
-                    if cached is None or fresh.sequence > cached.sequence:
-                        if cached is not None and fresh.sequence > cached.sequence + 1:
-                            self.gaps_detected += 1
-                            self._bus.publish(
-                                EventType.MARKET_DATA,
-                                {"token_id": tid, "reconcile_gap": True,
-                                 "from_seq": cached.sequence, "to_seq": fresh.sequence},
-                            )
-                        self._ingest(fresh)
+            await self._reconcile_once()
+
+    async def _reconcile_once(self) -> None:
+        """One reconciliation sweep. A transient per-token source error is counted
+        and skipped (observable via ``reconcile_errors``) — never silently dropped,
+        and never allowed to abort the whole sweep."""
+        for tid in list(self._subscribed):
+            try:
+                fresh = await self._source.snapshot(tid)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - transient source/network error
+                self.reconcile_errors += 1
+                continue
+            if fresh is None:
+                continue
+            cached = self._cache.get(tid)
+            if cached is None or fresh.sequence > cached.sequence:
+                if cached is not None and fresh.sequence > cached.sequence + 1:
+                    self.gaps_detected += 1
+                    self._bus.publish(
+                        EventType.MARKET_DATA,
+                        {"token_id": tid, "reconcile_gap": True,
+                         "from_seq": cached.sequence, "to_seq": fresh.sequence},
+                    )
+                self._ingest(fresh)
 
     async def _staleness_loop(self) -> None:
         while self._running:

@@ -100,8 +100,8 @@ class MemoryTarget(str, Enum):
 # --------------------------------------------------------------------------- #
 class BookLevel(BaseModel):
     model_config = {"extra": "forbid"}
-    price: float = Field(ge=0.0, le=1.0)
-    size: float = Field(ge=0.0)  # USD notional resting at this level
+    price: float = Field(ge=0.0, le=1.0, allow_inf_nan=False)
+    size: float = Field(ge=0.0, allow_inf_nan=False)  # USD notional resting at this level
 
 
 class OrderBookSnapshot(BaseModel):
@@ -112,7 +112,7 @@ class OrderBookSnapshot(BaseModel):
     token_id: str
     bids: list[BookLevel] = Field(default_factory=list)
     asks: list[BookLevel] = Field(default_factory=list)
-    last_trade: float | None = None
+    last_trade: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
     sequence: int = 0
     received_at: int = Field(default_factory=now_ms)
     source: str = "synthetic"
@@ -192,12 +192,12 @@ class Token(BaseModel):
     token_id: str
     market_id: str
     outcome: str
-    best_bid: float | None = None
-    best_ask: float | None = None
-    last_trade_price: float | None = None
-    spread: float | None = None
-    depth: float | None = None
-    tick_size: float = 0.01
+    best_bid: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
+    best_ask: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
+    last_trade_price: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
+    spread: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
+    depth: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
+    tick_size: float = Field(default=0.01, gt=0.0, le=1.0, allow_inf_nan=False)
     stale_after_ms: int = 5_000
 
 
@@ -361,8 +361,8 @@ class Campaign(BaseModel):
     start_time: str = Field(default_factory=now_iso)
     start_ms: int = Field(default_factory=now_ms)
     end_time: str | None = None
-    duration_hours: float = 48.0
-    bankroll: float = 1000.0
+    duration_hours: float = Field(default=48.0, gt=0.0, allow_inf_nan=False)
+    bankroll: float = Field(default=1000.0, gt=0.0, allow_inf_nan=False)
     market_filters: dict[str, Any] = Field(default_factory=dict)
     risk_policy_version: str = ""
     allowed_signal_sources: list[str] = Field(default_factory=list)

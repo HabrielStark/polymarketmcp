@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-06-11
+
+Adversarial robustness pass — hardening real failure modes (not the happy path).
+Each fix ships with a failure-injecting test.
+
+### Fixed
+
+- **Live subprocess could deadlock the daemon.** `LiveProcessClient._rpc` awaited
+  the child's response with no timeout while holding a lock — a hung or crashed
+  child would block every subsequent live call forever, and a dead pipe raised
+  unhandled. Now every RPC is time-bounded; a hung/crashed/broken child is killed,
+  reaped, and transparently respawned on the next call; failures are counted
+  (`faults`) and returned as clean errors. (tests/compliance/test_live_process_resilience.py)
+- **`Campaign` accepted non-finite/non-positive `bankroll`/`duration_hours`**,
+  which silently poisoned position sizing and could crash `end_ms`
+  (`int(nan)`/`int(inf)`). Now rejected at construction.
+
+### Hardened
+
+- **Background loops are supervised.** The safety-critical staleness loop (which
+  flags stale data so the risk engine refuses to trade on it) and the reconcile
+  loop are wrapped so an unexpected exception can never silently kill the
+  subsystem: crashes are counted (`loop_failures`), logged, and the loop is
+  restarted with backoff. Per-token reconcile errors are now counted
+  (`reconcile_errors`) instead of being blindly swallowed.
+  (tests/chaos/test_loop_supervision.py)
+- **Numeric input is validated at the model boundary.** Order-book prices/sizes,
+  snapshot `last_trade`, and `Token` price/depth fields reject NaN/Inf and
+  out-of-range values. (tests/unit/test_input_hardening.py)
+- **`RiskPolicy` fields are constrained** so a per-campaign profile can never make
+  costs *optimistic* (negative fee/slippage) or limits non-finite; ultra-strict
+  values remain allowed. Defense-in-depth behind the existing only-tighten guard.
+- **The MCP tool boundary never crashes or leaks.** A pydantic `ValidationError`
+  (out-of-range numeric that passes the loose JSON-Schema type check) now maps to
+  a clean `validation_error`; any other unexpected exception maps to a generic
+  `internal_error` logged to stderr, never a raw traceback or internal state.
+  (tests/integration/test_daemon_and_mcp.py)
+
+### Tests
+
+- Suite grew from 211 to **278** (67 new failure-injection tests). ruff clean.
+
 ## [0.1.0] - 2026-06-11
 
 Initial release — a reference implementation of **PM-MCP-SRS-001**: a local,

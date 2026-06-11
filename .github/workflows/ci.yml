@@ -2,11 +2,12 @@ name: CI
 
 # Continuous integration for Hermes-PM.
 #
-# Runs on the exact environment the 211-test suite is verified green on:
-# Windows + Python 3.11. Actions are pinned by commit SHA (supply-chain
-# hardening — a moving tag could be repointed at malicious code), and the
-# workflow token is least-privilege (read-only). No secrets are used, so it is
-# safe to run on pull requests from forks.
+# Runs the suite on Linux and Windows (Python 3.11). The functional suite is
+# verified green on both (Linux validated locally in a python:3.11 container;
+# Windows is the primary dev environment). Actions are pinned by commit SHA
+# (supply-chain hardening — a moving tag could be repointed at malicious code),
+# and the workflow token is least-privilege (read-only). No secrets are used, so
+# it is safe to run on pull requests from forks.
 
 on:
   push:
@@ -24,8 +25,12 @@ concurrency:
 
 jobs:
   test:
-    name: ruff + pytest (windows / py3.11)
-    runs-on: windows-latest
+    name: ruff + pytest (${{ matrix.os }} / py3.11)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     timeout-minutes: 25
     steps:
       - name: Checkout

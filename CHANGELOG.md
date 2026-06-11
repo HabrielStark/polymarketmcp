@@ -28,6 +28,16 @@ Each fix ships with a failure-injecting test.
   back on any exception); `_apply_fill` and `init_campaign` now write all money
   state in one transaction, with the in-memory order and audit/events updated only
   after commit. (tests/unit/test_atomic_fill.py)
+- **A crossed book passed the spread gate.** When a corrupt/stale feed reported
+  `best_bid > best_ask`, the negative spread (`ask - bid < 0`) slipped through the
+  `spread > max_spread` check as "tight" and could be approved. Now rejected as
+  `crossed_book`. (tests/unit/test_risk_degenerate_books.py)
+- **Lost-update race in mark-to-market.** `portfolio()` (invoked from the dashboard
+  thread) read a position and wrote it back *without the engine lock*, so a
+  concurrent fill's updated share count could be silently overwritten by the stale
+  marked copy. `mark_to_market` now holds the engine lock for the whole
+  read-modify-write — proven to fail 5/5 without the fix.
+  (tests/chaos/test_concurrency_stress.py)
 
 ### Hardened
 
@@ -49,10 +59,19 @@ Each fix ships with a failure-injecting test.
   a clean `validation_error`; any other unexpected exception maps to a generic
   `internal_error` logged to stderr, never a raw traceback or internal state.
   (tests/integration/test_daemon_and_mcp.py)
+- **Depth reflects only fillable liquidity.** `depth_usd` ignores zero-price levels
+  (which the matcher never fills), so the depth gate can't be satisfied by a book
+  padded with non-economic liquidity. The engine also never raises on degenerate
+  books (empty / one-sided / crossed / all-zero-price).
+- **Crash-atomicity is proven, not assumed.** A test kills a process
+  mid-transaction (`os._exit` before commit) and reopens the database to confirm
+  SQLite discards the uncommitted writes and the ledger stays balanced.
+  (tests/chaos/test_crash_recovery.py)
 
 ### Tests
 
-- Suite grew from 211 to **283** (72 new failure-injection tests). ruff clean.
+- Suite grew from 211 to **296** (85 new failure-injection / stress / crash tests).
+  ruff clean.
 
 ## [0.1.0] - 2026-06-11
 

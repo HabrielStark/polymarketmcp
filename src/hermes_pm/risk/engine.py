@@ -72,6 +72,12 @@ class RiskEngine:
         spread = ctx.book.spread if ctx.book else None
         if ctx.book is None or spread is None:
             violations.append("no_two_sided_market")
+        elif spread < 0:
+            # best_bid > best_ask: a crossed book is a corrupt/stale-feed anomaly
+            # (or a fleeting arbitrage we must not trust). Treating its negative
+            # spread as "tight" would silently pass the spread gate — reject it.
+            violations.append("crossed_book")
+            reasons.append(f"crossed book: best_bid > best_ask (spread={spread})")
         elif spread > p.max_spread:
             violations.append("spread_too_wide")
             reasons.append(f"spread={spread} > max_spread={p.max_spread}")

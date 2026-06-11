@@ -153,8 +153,12 @@ class OrderBookSnapshot(BaseModel):
         return round((self.best_bid + self.best_ask) / 2, 6)
 
     def depth_usd(self, side: Side) -> float:
+        # Count only economically-fillable levels (price > 0). A 0-price level is
+        # non-economic and the matcher never fills against it, so including it
+        # would overstate liquidity and let the risk depth-gate pass on a book
+        # that cannot actually fill.
         levels = self.asks if side is Side.BUY else self.bids
-        return round(sum(level.size for level in levels), 6)
+        return round(sum(level.size for level in levels if level.price > 0.0), 6)
 
     def is_stale(self, max_age_ms: int, now: int | None = None) -> bool:
         now = now if now is not None else now_ms()

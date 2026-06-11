@@ -321,10 +321,15 @@ class PaperEngine:
         self.db.upsert_position(pos)
 
     def mark_to_market(self, campaign_id: str) -> None:
-        for pos in self.db.list_positions(campaign_id):
-            book = self.cache.get(pos.token_id)
-            if book is not None:
-                self._mark_position(pos, book.mid)
+        # Hold the engine lock for the whole read-modify-write: marking reads each
+        # position and writes it back, and the DB lock is released between those
+        # two steps. Without this, a fill committing in the gap would have its
+        # updated share count silently overwritten by the stale marked copy.
+        with self._lock:
+            for pos in self.db.list_positions(campaign_id):
+                book = self.cache.get(pos.token_id)
+                if book is not None:
+                    self._mark_position(pos, book.mid)
 
     def portfolio(self, campaign_id: str, bankroll: float) -> dict:
         self.mark_to_market(campaign_id)

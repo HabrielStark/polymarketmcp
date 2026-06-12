@@ -77,8 +77,15 @@ Each fix ships with a failure-injecting test.
 ### Tests
 
 - **100% line + branch coverage** (coverage.py, branch mode), enforced via
-  `fail_under = 100`. Suite grew from 211 to **518** tests across failure-injection,
-  stress, crash-recovery, concurrency, security, and full-coverage closeout. ruff clean.
+  `fail_under = 100`. Suite grew from 211 to **520** tests across failure-injection,
+  stress, crash-recovery, concurrency, security, property/fuzz, and full-coverage
+  closeout. ruff clean.
+- **Stateful model-based testing** (Hypothesis `RuleBasedStateMachine`): drives the
+  paper engine through random interleavings of place/cancel/book-tick/mark and
+  checks the full invariant set after EVERY step — ledger balances, cash equals the
+  ledger CASH balance, no order over-fills, fills reconcile, positions reconcile
+  with the signed sum of fills, and the audit chain stays intact. Plus a property
+  that the risk engine never approves above its hard caps.
 - Removed unreachable dead code (`promotion._recommend`'s `paper_only` branch was
   shadowed by the PC-001 eligibility gate and could never execute). Only genuinely
   real-I/O-only paths are pragma'd, each with a stated reason (live WebSocket client

@@ -77,9 +77,14 @@ Each fix ships with a failure-injecting test.
 ### Tests
 
 - **100% line + branch coverage** (coverage.py, branch mode), enforced via
-  `fail_under = 100`. Suite grew from 211 to **520** tests across failure-injection,
-  stress, crash-recovery, concurrency, security, property/fuzz, and full-coverage
-  closeout. ruff clean.
+  `fail_under = 100`. Suite grew from 211 to **521** tests across failure-injection,
+  stress, crash-recovery, concurrency, security, property/fuzz, mutation, and
+  full-coverage closeout. ruff clean.
+- **Mutation testing extended to the money core.** The paper engine's matcher and
+  fill/position/cash accounting are now mutation-tested: flipping the fill-cross
+  condition, `shares = usd/price`, the buy/sell sign, the cash sign, or the
+  realized-P&L sign each produces a mutant that the suite KILLS (proving those
+  tests are real, not decoration).
 - **Stateful model-based testing** (Hypothesis `RuleBasedStateMachine`): drives the
   paper engine through random interleavings of place/cancel/book-tick/mark and
   checks the full invariant set after EVERY step — ledger balances, cash equals the

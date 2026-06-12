@@ -174,3 +174,91 @@ def test_risk_engine_mutants_all_killed():
          "if ctx.realized_pnl_today >= -p.daily_loss_stop_pct * bankroll:"),
     ]
     assert _run("risk/engine.py", mutations, oracle) == []
+
+
+
+def test_paper_engine_mutants_all_killed():
+    """Mutate the money-critical matcher / fill / position-accounting logic and
+    prove a strong oracle KILLS every mutant. A survivor means that piece of
+    money logic is not actually protected by the suite."""
+    from hermes_pm.audit.store import AuditStore
+    from hermes_pm.config import RiskPolicy
+    from hermes_pm.data.cache import OrderBookCache
+    from hermes_pm.events import EventBus
+    from hermes_pm.models import (
+        BookLevel,
+        Campaign,
+        Mode,
+        OrderBookSnapshot,
+        OrderType,
+        RiskDecision,
+        RiskResult,
+        Side,
+        TradeIntent,
+    )
+    from hermes_pm.persistence.db import Database
+
+    def _book(bid, ask):
+        return OrderBookSnapshot(token_id="tok", bids=[BookLevel(price=bid, size=1e6)],
+                                 asks=[BookLevel(price=ask, size=1e6)])
+
+    def oracle(m):
+        db = Database(":memory:")
+        cache = OrderBookCache()
+        paper = m.PaperEngine(db, cache, EventBus(), AuditStore(db),
+                              RiskPolicy(fee_bps=0.0, slippage_bps=0.0))
+        camp = Campaign(name="c", mode=Mode.PAPER, bankroll=10_000.0)
+        db.save_campaign(camp)
+        paper.init_campaign(camp)
+        cid = camp.campaign_id
+
+        def order(side, price, size, key):
+            cache.update(_book(0.49, 0.50) if side is Side.BUY else _book(0.60, 0.61))
+            ti = TradeIntent(campaign_id=cid, market_id="m", token_id="tok", side=side,
+                             order_type=OrderType.MARKETABLE_LIMIT, limit_price=price,
+                             max_size_usd=size, thesis="t", counter_thesis="c", confidence=0.5,
+                             expires_at="2030-12-30T00:00:00Z", idempotency_key=key)
+            db.save_intent(ti)
+            dec = RiskDecision(intent_id=ti.intent_id, campaign_id=cid, result=RiskResult.APPROVE,
+                               approved_size_usd=size, approved_limit_price=price)
+            return paper.place_order(camp, ti, dec)
+
+        # 1) marketable BUY $100 @ limit 0.55 vs best ask 0.50 -> fills 200 shares @ 0.50.
+        o = order(Side.BUY, 0.55, 100.0, "b1")
+        assert o.status.value == "filled"
+        pos = db.get_position(cid, "tok")
+        assert abs(pos.shares - 200.0) < 1e-6                 # shares = 100/0.50 (div, sign)
+        assert abs(paper.cash(cid) - 9_900.0) < 1e-6          # cash down by 100 (cash sign)
+
+        # 2) BUY at limit 0.40 (below best ask 0.50) must NOT fill (cross condition).
+        cache.update(_book(0.49, 0.50))
+        o2_ti = TradeIntent(campaign_id=cid, market_id="m", token_id="tok", side=Side.BUY,
+                            order_type=OrderType.MARKETABLE_LIMIT, limit_price=0.40,
+                            max_size_usd=50.0, thesis="t", counter_thesis="c", confidence=0.5,
+                            expires_at="2030-12-30T00:00:00Z", idempotency_key="b2")
+        db.save_intent(o2_ti)
+        o2 = paper.place_order(camp, o2_ti, RiskDecision(
+            intent_id=o2_ti.intent_id, campaign_id=cid, result=RiskResult.APPROVE,
+            approved_size_usd=50.0, approved_limit_price=0.40))
+        assert o2.filled_size_usd == 0.0                      # would-cross flip caught here
+
+        # 3) SELL to close at a higher price 0.60 -> realized P&L must be positive.
+        s = order(Side.SELL, 0.55, 60.0, "s1")
+        assert s.status.value == "filled"
+        pos2 = db.get_position(cid, "tok")
+        assert pos2.realized_pnl > 0.0                        # (price - avg) sign on a winning close
+
+    mutations = [
+        ("fill shares div->mul", "shares = round(fill_usd / price, 6) if price > 0 else 0.0",
+         "shares = round(fill_usd * price, 6) if price > 0 else 0.0"),
+        ("buy/sell signed flip", "signed = shares if order.side is Side.BUY else -shares",
+         "signed = -shares if order.side is Side.BUY else shares"),
+        ("cash sign flip", "cash6 = round(-signed * price - fee, 6)",
+         "cash6 = round(signed * price - fee, 6)"),
+        ("match cross-condition flip", "(lambda lp: lp <= order.price) if order.side is Side.BUY",
+         "(lambda lp: lp >= order.price) if order.side is Side.BUY"),
+        ("realized pnl sign flip",
+         "realized = (price - a) * closing if s > 0 else (a - price) * closing",
+         "realized = (a - price) * closing if s > 0 else (price - a) * closing"),
+    ]
+    assert _run("execution/paper_engine.py", mutations, oracle) == []

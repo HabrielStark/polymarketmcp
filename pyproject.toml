@@ -72,3 +72,21 @@ ignore = ["S101", "E501", "UP042"]
 # Tests: "token_id"/"token" args trip the hardcoded-password heuristics (false
 # positives), and asserting broad failure via pytest.raises(Exception) is fine.
 "tests/**" = ["S105", "S106", "S107", "B017", "S311", "S608", "S110"]
+
+[tool.coverage.run]
+branch = true
+source = ["hermes_pm"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+# Lines that are non-executable by design or only run as a real entrypoint.
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+    "\\.\\.\\.",            # Protocol / stub ellipsis bodies
+]
+

@@ -136,7 +136,7 @@ def create_app(daemon: TradingDaemon) -> FastAPI:
                     event = await q.get()
                     daemon.metrics.dashboard_push_latency_ms.observe(max(0, now_ms() - event.ts))
                     await websocket.send_json({"type": event.type, "data": event.data, "ts": event.ts})
-        except WebSocketDisconnect:
+        except WebSocketDisconnect:  # pragma: no cover - only a live ASGI client disconnect mid-stream
             return
         except Exception:  # noqa: BLE001
             with contextlib.suppress(Exception):

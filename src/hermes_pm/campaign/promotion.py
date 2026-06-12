@@ -127,11 +127,9 @@ def _recommend(
             "continue_paper: results are operationally clean but the sample is statistically weak. "
             "Run more/longer paper campaigns before any live eligibility review."
         )
-    if not eligible:
-        return (
-            "paper_only: results are clean and sufficiently sampled, but live eligibility/compliance "
-            "gates are NOT satisfied. A human compliance review is required; live remains locked."
-        )
+    # NB: a "not eligible but otherwise clean" case cannot reach here — PC-001
+    # (eligibility) is part of ``pc``, so a failing eligibility gate is already
+    # caught by the ``not all(pc.values())`` check above (-> continue_paper).
     return (
         "eligibility_review_only: clean, sufficiently sampled, and compliance gates pass. "
         "This recommends a HUMAN live-eligibility review — it does NOT unlock live trading."

@@ -58,7 +58,10 @@ async def test_control_actions_and_emergency_stop(daemon):
     )
     cid = camp["campaign_id"]
     async with await _client(daemon) as c:
-        assert (await c.post(f"/api/campaign/{cid}/pause")).json()["status"] == "paused"
+        assert (await c.post(
+            f"/api/campaign/{cid}/pause",
+            headers={"Origin": "http://127.0.0.1"},
+        )).json()["status"] == "paused"
         assert (await c.post(f"/api/campaign/{cid}/resume")).json()["status"] == "running"
         assert (await c.post(f"/api/campaign/{cid}/stop")).json()["status"] == "stopped"
         bad = await c.post(f"/api/campaign/{cid}/frobnicate")
@@ -123,6 +126,16 @@ async def test_ws_rejects_when_not_localhost_without_token(daemon):
             pass
 
 
+async def test_ws_rejects_query_token_when_not_localhost(daemon):
+    """server.py /ws: query tokens are rejected even when the value is correct."""
+    daemon.settings.dashboard_host = "10.0.0.5"
+    daemon.settings.dashboard_token = "expected-token"
+    app = create_app(daemon)
+    with TestClient(app) as client, pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws?token=expected-token"):
+            pass
+
+
 async def test_ws_handler_error_path_closes_socket(daemon, monkeypatch):
     """server.py /ws: an error while handling an event hits the except/suppress/close."""
     class _BoomHist:
@@ -156,7 +169,9 @@ async def test_ws_accepts_when_not_localhost_with_valid_token(daemon):
     app = create_app(daemon)
     with TestClient(app) as client:
         base = daemon.bus.subscriber_count
-        with client.websocket_connect("/ws?token=expected-token") as ws:
+        with client.websocket_connect(
+            "/ws", subprotocols=["hpm-token-expected-token"]
+        ) as ws:
             for _ in range(300):
                 if daemon.bus.subscriber_count > base:
                     break

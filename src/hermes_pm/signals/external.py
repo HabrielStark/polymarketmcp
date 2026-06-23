@@ -1,4 +1,4 @@
-"""External signal adapters: weather, sports, news (FR-EXT-001..004).
+"""External signal adapters: weather, sports, crypto, macro, official data, news.
 
 Each adapter is a complete, working provider in deterministic offline mode and
 declares the metadata the risk engine needs to reason about source freshness and
@@ -102,5 +102,93 @@ class NewsAdapter(SignalAdapter):
                 raw_text=text,
                 stance=SignalStance.BULLISH if bullish else SignalStance.BEARISH,
                 confidence=0.45, novelty=0.55, issued_at=now_ms(),
+            )
+        ]
+
+
+class CryptoAdapter(SignalAdapter):
+    meta = AdapterMeta(
+        name="crypto", source_class=SourceType.PRIMARY, latency_class="delayed",
+        update_frequency_s=15, source_authority="exchange_index_or_oracle",
+        reliability=0.72, licensing="provider_terms", suitable_for_realtime=False,
+    )
+
+    async def fetch(self, market: Market, *, counter: bool = False) -> list[Signal]:
+        if market.category != "crypto":
+            return []
+        seed = _h(market.market_id, "c")
+        move_bps = (seed % 900) - 450
+        if counter:
+            move_bps = -move_bps
+        bullish = move_bps >= 0
+        text = (
+            f"[synthetic crypto index] reference_time={now_iso()} "
+            f"24h_move_bps={move_bps:+d} oracle_status=healthy for '{market.question}'."
+        )
+        return [
+            build_signal(
+                market.market_id, self.meta,
+                source_ref=f"crypto://index/{market.market_id}/{now_ms()}",
+                raw_text=text,
+                stance=SignalStance.BULLISH if bullish else SignalStance.BEARISH,
+                confidence=round(min(1.0, abs(move_bps) / 450), 3),
+                novelty=0.45, issued_at=now_ms(),
+            )
+        ]
+
+
+class MacroAdapter(SignalAdapter):
+    meta = AdapterMeta(
+        name="macro", source_class=SourceType.PRIMARY, latency_class="delayed",
+        update_frequency_s=900, source_authority="economic_calendar_or_central_bank",
+        reliability=0.78, licensing="public_or_provider_terms", suitable_for_realtime=False,
+    )
+
+    async def fetch(self, market: Market, *, counter: bool = False) -> list[Signal]:
+        if market.category not in {"macro", "economics", "finance"}:
+            return []
+        seed = _h(market.market_id, "m")
+        surprise = ((seed % 201) - 100) / 100
+        if counter:
+            surprise = -surprise
+        text = (
+            f"[synthetic macro calendar] release_time={now_iso()} "
+            f"surprise_zscore={surprise:+.2f} official_revision_flag=false for '{market.question}'."
+        )
+        return [
+            build_signal(
+                market.market_id, self.meta,
+                source_ref=f"macro://calendar/{market.market_id}/{now_ms()}",
+                raw_text=text,
+                stance=SignalStance.BULLISH if surprise >= 0 else SignalStance.BEARISH,
+                confidence=round(min(1.0, abs(surprise)), 3),
+                novelty=0.50, issued_at=now_ms(),
+            )
+        ]
+
+
+class OfficialDataAdapter(SignalAdapter):
+    meta = AdapterMeta(
+        name="official_data", source_class=SourceType.PRIMARY, latency_class="delayed",
+        update_frequency_s=600, source_authority="official_resolution_or_government_source",
+        reliability=0.90, licensing="source_terms", suitable_for_realtime=False,
+    )
+
+    async def fetch(self, market: Market, *, counter: bool = False) -> list[Signal]:
+        seed = _h(market.market_id, "o")
+        supports = (seed % 3 != 0) != counter
+        text = (
+            f"[synthetic official source] checked_at={now_iso()} "
+            f"resolution_source={market.resolution_source or 'unavailable'} "
+            f"status={'supports_yes' if supports else 'does_not_support_yes'} "
+            f"for '{market.question}'."
+        )
+        return [
+            build_signal(
+                market.market_id, self.meta,
+                source_ref=f"official://{market.market_id}/{seed % 10000}",
+                raw_text=text,
+                stance=SignalStance.BULLISH if supports else SignalStance.BEARISH,
+                confidence=0.55, novelty=0.35, issued_at=now_ms(),
             )
         ]

@@ -359,6 +359,8 @@ async def test_live_adapter_all_gates_pass_pending_review(tmp_path):
     s = load_settings(
         data_dir=str(tmp_path), live_enabled=True, operator_age_verified=True,
         operator_jurisdiction_allowed=True, operator_acknowledged_risk=True,
+        operator_platform_terms_accepted=True, operator_no_bypass_tools=True,
+        operator_no_market_manipulation=True,
         red_team_passed=True,
     )
     db = Database(":memory:")
@@ -377,6 +379,30 @@ async def test_live_adapter_all_gates_pass_pending_review(tmp_path):
     assert out["status"] == "pending_manual_review"
     assert out["compliance_state"]["all_pass"] is True
     assert out["order_ref"] is None
+
+
+async def test_live_adapter_rejects_mismatched_intent_decision(tmp_path):
+    s = load_settings(
+        data_dir=str(tmp_path), live_enabled=True, operator_age_verified=True,
+        operator_jurisdiction_allowed=True, operator_acknowledged_risk=True,
+        operator_platform_terms_accepted=True, operator_no_bypass_tools=True,
+        operator_no_market_manipulation=True, red_team_passed=True,
+    )
+    db = Database(":memory:")
+    decision = RiskDecision(intent_id="other-ti", campaign_id="c", result=RiskResult.APPROVE,
+                            approved_size_usd=10.0, approved_limit_price=0.5)
+
+    async def geo_ok():
+        return {"blocked": False}
+
+    adapter = LiveAdapter(s, AuditStore(db), lambda _rid: decision, geoblock_check=geo_ok)
+    adapter._vault = SigningVault(
+        EnvSecretStore(env={"HPM_SECRET_LIVE_SIGNING_KEY": "test-key"}), "live_signing_key")
+
+    out = await adapter.place_order_intent("ti", "rd", user_confirmation_token="confirm")
+    assert out["status"] == "blocked"
+    assert out["compliance_state"]["decision_matches_intent"] is False
+    assert out["compliance_state"]["risk_approved"] is False
 
 
 async def test_live_adapter_cancel_and_open_orders(settings):

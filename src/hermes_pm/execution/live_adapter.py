@@ -37,9 +37,16 @@ class SigningVault:
     unavailable unless a signing key has been provisioned in the store
     out-of-band (so the default env/no-key configuration keeps it locked)."""
 
-    def __init__(self, store: SecretStore | None = None, key_name: str = "live_signing_key") -> None:
+    def __init__(
+        self,
+        store: SecretStore | None = None,
+        key_name: str = "live_signing_key",
+        *,
+        process_isolated: bool = False,
+    ) -> None:
         self._store = store
         self._key_name = key_name
+        self._process_isolated = process_isolated
 
     @property
     def available(self) -> bool:
@@ -55,7 +62,7 @@ class SigningVault:
         return {
             "unlocked": self.available,
             "exposes_secrets": False,
-            "process_isolated": True,
+            "process_isolated": self._process_isolated,
             "backend": self._store.backend if self._store else "none",
         }
 
@@ -93,6 +100,7 @@ class ComplianceGate:
         decision: RiskDecision | None,
         user_confirmation_token: str | None,
         vault: SigningVault,
+        expected_intent_id: str | None = None,
     ) -> dict[str, Any]:
         geo_blocked = True
         if self._geoblock_check is not None:
@@ -101,15 +109,23 @@ class ComplianceGate:
                 geo_blocked = bool(result.get("blocked", True))
             except Exception:  # noqa: BLE001 - fail closed
                 geo_blocked = True
+        decision_matches = bool(
+            decision is not None
+            and (expected_intent_id is None or decision.intent_id == expected_intent_id)
+        )
 
         gates = {
             "live_enabled": bool(self._s.live_enabled),
             "operator_age_verified": bool(self._s.operator_age_verified),
             "jurisdiction_allowed": bool(self._s.operator_jurisdiction_allowed),
             "operator_acknowledged_risk": bool(self._s.operator_acknowledged_risk),
+            "platform_terms_accepted": bool(self._s.operator_platform_terms_accepted),
+            "no_bypass_tools": bool(self._s.operator_no_bypass_tools),
+            "no_market_manipulation": bool(self._s.operator_no_market_manipulation),
             "geoblock_pass": not geo_blocked,
             "red_team_passed": bool(self._s.red_team_passed),  # NFR-SEC-005
-            "risk_approved": bool(decision is not None and decision.result is RiskResult.APPROVE),
+            "decision_matches_intent": decision_matches,
+            "risk_approved": bool(decision_matches and decision.result is RiskResult.APPROVE),
             "user_confirmation_present": bool(user_confirmation_token),
             "signing_vault_available": vault.available,
             "not_frozen": not self.frozen,
@@ -127,11 +143,17 @@ class LiveAdapter:
         audit: AuditStore,
         decision_lookup: Callable[[str], RiskDecision | None],
         geoblock_check: Callable[[], Awaitable[dict]] | None = None,
+        *,
+        load_vault: bool = True,
+        process_isolated: bool = False,
     ) -> None:
         self._s = settings
         self._audit = audit
         self._decision_lookup = decision_lookup
-        self._vault = SigningVault(make_secret_store(settings), settings.signing_key_name)
+        store = make_secret_store(settings) if load_vault else None
+        self._vault = SigningVault(
+            store, settings.signing_key_name, process_isolated=process_isolated
+        )
         self._gate = ComplianceGate(settings, geoblock_check)
 
     @property
@@ -155,7 +177,9 @@ class LiveAdapter:
         """Reference-only entry point. Returns ``blocked`` unless every gate
         passes (it never does by default)."""
         decision = self._decision_lookup(risk_decision_id)
-        gates = await self._gate.evaluate(decision, user_confirmation_token, self._vault)
+        gates = await self._gate.evaluate(
+            decision, user_confirmation_token, self._vault, expected_intent_id=trade_intent_id
+        )
         if not gates["all_pass"]:
             out = {
                 "status": "blocked",

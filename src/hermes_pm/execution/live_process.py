@@ -42,7 +42,14 @@ def _build_adapter():
     settings = load_settings()
     db = Database(settings.db_path)
     # geoblock_check=None -> ComplianceGate fails closed (no live data to verify).
-    return LiveAdapter(settings, _NullAudit(), db.get_risk_decision, geoblock_check=None)
+    return LiveAdapter(
+        settings,
+        _NullAudit(),
+        db.get_risk_decision,
+        geoblock_check=None,
+        load_vault=True,
+        process_isolated=True,
+    )
 
 
 async def _handle(adapter, msg: dict[str, Any]) -> dict[str, Any]:

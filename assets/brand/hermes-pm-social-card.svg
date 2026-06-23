@@ -1,0 +1,29 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Hermes-PM social preview</title>
+  <desc id="desc">Social preview card for Hermes-PM, a local MCP prediction-market paper-trading system.</desc>
+  <rect width="1280" height="640" fill="#11130F"/>
+  <rect x="44" y="44" width="1192" height="552" rx="28" fill="#1C2018" stroke="#F3EFE3" stroke-opacity=".14" stroke-width="2"/>
+  <path d="M100 132H1180" stroke="#F3EFE3" stroke-opacity=".16" stroke-width="2"/>
+  <path d="M100 508H1180" stroke="#F3EFE3" stroke-opacity=".16" stroke-width="2"/>
+  <g transform="translate(100 172) scale(.42)">
+    <rect width="512" height="512" rx="96" fill="#11130F"/>
+    <path d="M146 128H196V384H146V128Z" fill="#F3EFE3"/>
+    <path d="M316 128H366V384H316V128Z" fill="#F3EFE3"/>
+    <path d="M191 235H321V286H191V235Z" fill="#F3EFE3"/>
+    <path d="M210 128H292L188 235H146L210 128Z" fill="#B7F34A"/>
+    <path d="M302 384H220L324 286H366L302 384Z" fill="#C97B45"/>
+    <circle cx="256" cy="260" r="23" fill="#11130F" stroke="#E85B4D" stroke-width="12"/>
+  </g>
+  <text x="380" y="244" fill="#F3EFE3" font-family="Fraunces, Georgia, serif" font-size="94" font-weight="900" letter-spacing="-2">Hermes-PM</text>
+  <text x="385" y="308" fill="#B9B5A6" font-family="IBM Plex Mono, Consolas, monospace" font-size="27" font-weight="500" letter-spacing="1.5">MCP-native prediction-market research, paper execution, risk gates, and audit replay.</text>
+  <g font-family="IBM Plex Mono, Consolas, monospace" font-size="24" font-weight="700">
+    <rect x="386" y="374" width="196" height="48" rx="8" fill="#B7F34A"/>
+    <text x="410" y="407" fill="#11130F">PAPER FIRST</text>
+    <rect x="604" y="374" width="214" height="48" rx="8" fill="#C97B45"/>
+    <text x="628" y="407" fill="#11130F">AUDIT CHAIN</text>
+    <rect x="840" y="374" width="206" height="48" rx="8" fill="#E85B4D"/>
+    <text x="864" y="407" fill="#11130F">LIVE LOCKED</text>
+  </g>
+  <path d="M388 470H1120" stroke="#B7F34A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M388 493H862" stroke="#C97B45" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+</svg>

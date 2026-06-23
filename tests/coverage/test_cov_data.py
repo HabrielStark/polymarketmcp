@@ -34,6 +34,7 @@ from hermes_pm.data.polymarket_client import (
     PolymarketSource,
     _book_from_clob,
     _json_array,
+    _snapshots_from_clob_event,
 )
 from hermes_pm.data.sources import ReplaySource, SyntheticSource
 from hermes_pm.errors import RateLimitedError
@@ -64,6 +65,9 @@ def _market(
     tags: list[str] | None = None,
     end_time: str | None = None,
     category: str = "weather",
+    liquidity_usd: float | None = None,
+    volume_usd: float | None = None,
+    spread: float | None = None,
 ) -> Market:
     return Market(
         market_id=market_id,
@@ -76,6 +80,9 @@ def _market(
         resolution_source=source,
         tags=list(tags or []),
         end_time=end_time,
+        liquidity_usd=liquidity_usd,
+        volume_usd=volume_usd,
+        spread=spread,
     )
 
 
@@ -298,10 +305,12 @@ def test_cache_sweep_stale_and_connectivity(book_factory):
 # --------------------------------------------------------------------------- #
 def test_passes_filters_rejects_on_tags_any():
     # discovery.py:35 — tags_any set but no overlap with market tags.
-    m = _market(tags=["weather"])
+    m = _market(category="weather", tags=["Weather"])
     assert DiscoveryEngine.passes_filters(m, {"tags_any": ["sports"]}) is False
     # control: overlapping tag passes the tags filter
     assert DiscoveryEngine.passes_filters(m, {"tags_any": ["weather"]}) is True
+    assert DiscoveryEngine.passes_filters(m, {"categories": ["Weather"]}) is True
+    assert DiscoveryEngine.passes_filters(m, {"exclude_categories": ["Weather"]}) is False
 
 
 def test_passes_filters_rejects_end_time_after_max():
@@ -335,6 +344,23 @@ def test_passes_filters_other_rejections():
     ambiguous = _market(rules="", source="")
     assert DiscoveryEngine.passes_filters(ambiguous, {}) is False  # 39 (require_clear_resolution)
     assert DiscoveryEngine.passes_filters(weather, {}) is True  # control: all gates pass
+
+
+def test_passes_filters_min_liquidity_volume_spread():
+    # discovery.py FR-MD-005 — liquidity / volume / spread microstructure filters.
+    liquid = _market(liquidity_usd=10_000.0, volume_usd=100_000.0, spread=0.02)
+    assert DiscoveryEngine.passes_filters(liquid, {"min_liquidity": 5_000.0}) is True
+    assert DiscoveryEngine.passes_filters(liquid, {"min_liquidity": 50_000.0}) is False
+    # unknown liquidity is treated strictly as 0 (excluded when a floor is set).
+    assert (
+        DiscoveryEngine.passes_filters(_market(liquidity_usd=None), {"min_liquidity": 1.0}) is False
+    )
+    assert DiscoveryEngine.passes_filters(liquid, {"min_volume": 50_000.0}) is True
+    assert DiscoveryEngine.passes_filters(liquid, {"min_volume": 200_000.0}) is False
+    assert DiscoveryEngine.passes_filters(liquid, {"max_spread": 0.05}) is True
+    assert DiscoveryEngine.passes_filters(liquid, {"max_spread": 0.01}) is False
+    # unknown spread is lenient: only the live order-book gate applies later.
+    assert DiscoveryEngine.passes_filters(_market(spread=None), {"max_spread": 0.01}) is True
 
 
 def test_build_watchlist_filters_and_keeps():
@@ -644,6 +670,33 @@ async def test_polymarket_geoblock_non_dict_blocks():
     assert result["raw"] == ["unexpected"]
 
 
+async def test_polymarket_geoblock_unknown_schema_blocks():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={})
+
+    src = PolymarketSource(load_settings())
+    src._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await src.geoblock_check()
+    finally:
+        await src.close()
+    assert result["blocked"] is True
+    assert result["raw"] == {}
+
+
+async def test_polymarket_geoblock_allowed_false_blocks():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"allowed": False})
+
+    src = PolymarketSource(load_settings())
+    src._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await src.geoblock_check()
+    finally:
+        await src.close()
+    assert result["blocked"] is True
+
+
 async def test_polymarket_stream_parses_ws_messages(monkeypatch):
     # polymarket_client.py:143-158 — WS subscribe + parse book events.
     book_msg = json.dumps(
@@ -656,6 +709,27 @@ async def test_polymarket_stream_parses_ws_messages(monkeypatch):
             "timestamp": "100",
         }
     )
+    price_change_msg = json.dumps(
+        {
+            "event_type": "price_change",
+            "price_changes": [
+                {"asset_id": "111", "price": "0.41", "size": "50", "side": "BUY"}
+            ],
+            "timestamp": "101",
+        }
+    )
+    last_trade_msg = json.dumps(
+        {"event_type": "last_trade_price", "asset_id": "111", "price": "0.46", "timestamp": "102"}
+    )
+    best_bid_ask_msg = json.dumps(
+        {
+            "event_type": "best_bid_ask",
+            "asset_id": "333",
+            "best_bid": "0.2",
+            "best_ask": "0.3",
+            "timestamp": "103",
+        }
+    )
     list_msg = json.dumps(
         [
             42,  # non-dict element -> skipped (lines 154-155)
@@ -663,7 +737,10 @@ async def test_polymarket_stream_parses_ws_messages(monkeypatch):
         ]
     )
     nonbook_msg = json.dumps([{"event_type": "price_change", "asset_id": "999"}])
-    ws = _FakeWS(["this-is-not-json", book_msg, list_msg, nonbook_msg])
+    ws = _FakeWS([
+        "this-is-not-json", book_msg, price_change_msg, last_trade_msg,
+        best_bid_ask_msg, list_msg, nonbook_msg,
+    ])
     monkeypatch.setattr(websockets, "connect", lambda *a, **k: _FakeConnect(ws))
 
     src = PolymarketSource(load_settings())
@@ -672,6 +749,64 @@ async def test_polymarket_stream_parses_ws_messages(monkeypatch):
     finally:
         await src.close()
 
-    assert {b.token_id for b in books} == {"111", "222"}
-    assert len(books) == 2  # the non-book event yields nothing
-    assert ws.sent and "assets_ids" in ws.sent[0]
+    assert {b.token_id for b in books} == {"111", "222", "333"}
+    assert len(books) == 5  # book, price_change, last_trade, best_bid_ask, list-book
+    assert books[1].best_bid == 0.41
+    assert books[2].last_trade == 0.46
+    assert books[3].spread == 0.1
+    assert ws.sent and "assets_ids" in ws.sent[0] and "custom_feature_enabled" in ws.sent[0]
+
+
+def test_polymarket_clob_event_edge_branches():
+    books: dict[str, OrderBookSnapshot] = {}
+    assert _snapshots_from_clob_event({"event_type": "book"}, "live", books) == []
+
+    books["tok"] = OrderBookSnapshot(
+        token_id="tok",
+        bids=[BookLevel(price=0.40, size=1.0)],
+        asks=[BookLevel(price=0.60, size=1.0)],
+        last_trade=0.50,
+    )
+    out = _snapshots_from_clob_event(
+        {
+            "event_type": "price_change",
+            "timestamp": "not-an-int",
+            "price_changes": [
+                "bad-shape",
+                {"asset_id": "", "price": "0.41", "size": "1", "side": "BUY"},
+                {"asset_id": "tok", "price": None, "size": "1", "side": "BUY"},
+                {"asset_id": "tok", "price": "0.40", "size": "0", "side": "BUY"},
+                {"asset_id": "tok", "price": "0.61", "size": "2", "side": "SELL"},
+                {"asset_id": "tok", "price": "0.70", "size": "1", "side": "HOLD"},
+            ],
+        },
+        "live",
+        books,
+    )
+    assert len(out) == 2
+    assert all(s.sequence > 0 for s in out)
+    assert [level.price for level in books["tok"].bids] == []
+    assert {level.price for level in books["tok"].asks} == {0.60, 0.61}
+
+    assert _snapshots_from_clob_event({"event_type": "last_trade_price"}, "live", books) == []
+    trade = _snapshots_from_clob_event(
+        {"event_type": "last_trade_price", "asset_id": "tok", "price": "0.42", "seq": 7},
+        "live",
+        books,
+    )[0]
+    assert trade.last_trade == 0.42
+
+    assert _snapshots_from_clob_event({"event_type": "best_bid_ask"}, "live", books) == []
+    bid_only = _snapshots_from_clob_event(
+        {"event_type": "best_bid_ask", "asset_id": "new-bid", "best_bid": "0.33"},
+        "live",
+        books,
+    )[0]
+    ask_only = _snapshots_from_clob_event(
+        {"event_type": "best_bid_ask", "asset_id": "new-ask", "best_ask": "0.67"},
+        "live",
+        books,
+    )[0]
+    assert bid_only.best_bid == 0.33 and bid_only.best_ask is None
+    assert ask_only.best_bid is None and ask_only.best_ask == 0.67
+    assert _snapshots_from_clob_event({"event_type": "new_market"}, "live", books) == []

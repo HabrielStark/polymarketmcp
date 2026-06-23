@@ -4,24 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-pm"
-version = "0.1.0"
+version = "0.1.2"
 description = "Hermes-Integrated MCP Prediction Market Agent - local low-latency paper-trading laboratory (PM-MCP-SRS-001)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "pydantic>=2.6",
-    "pydantic-settings>=2.2",
+    "pydantic-settings>=2.14.2",
     "httpx>=0.27",
     "websockets>=12.0",
     "fastapi>=0.110",
+    # Security floors for transitive web stack packages used by FastAPI/MCP.
+    "starlette>=1.3.1",
+    "python-multipart>=0.0.31",
     "uvicorn>=0.29",
     "mcp>=1.2",
     "prometheus-client>=0.20",
     # Required at startup: the daemon always builds the LiveAdapter -> SigningVault,
     # which imports execution/secrets.py, which uses Fernet + PBKDF2 (NFR-SEC-001)
     # for the encrypted-file secret store. Not optional.
-    "cryptography>=42",
+    "cryptography>=48.0.1",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +59,7 @@ markers = [
     "latency: latency NFR benchmarks",
     "property: hypothesis property/fuzz tests",
     "e2e: end-to-end acceptance tests",
+    "live: network-gated tests that hit the real Polymarket API (HPM_RUN_LIVE_TESTS=1)",
 ]
 
 [tool.ruff]
@@ -89,4 +93,3 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
     "\\.\\.\\.",            # Protocol / stub ellipsis bodies
 ]
-

@@ -1,7 +1,8 @@
 # Hermes-PM — dependency lock (constraints)
 #
 # Exact, fully-resolved versions of the environment in which the test suite is
-# verified green (211 passed). Use as a constraints file for reproducible
+# verified green (547 tests collected; 3 live-gated tests skipped by default).
+# Use as a constraints file for reproducible
 # installs:
 #
 #   pip install -e ".[dev]" --constraint constraints.txt
@@ -26,7 +27,7 @@ cffi==2.0.0
 click==8.4.1
 colorama==0.4.6
 coverage==7.14.1
-cryptography==48.0.0
+cryptography==48.0.1
 fastapi==0.136.3
 h11==0.16.0
 httpcore==1.0.9
@@ -51,12 +52,13 @@ mdurl==0.1.2
 more-itertools==11.1.0
 mutmut==3.5.0
 packaging==26.2
+pip==26.1.2
 platformdirs==4.10.0
 pluggy==1.6.0
 prometheus_client==0.25.0
 pycparser==3.0
 pydantic==2.13.4
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 pydantic_core==2.46.4
 Pygments==2.20.0
 PyJWT==2.13.0
@@ -64,7 +66,7 @@ pytest==9.0.3
 pytest-asyncio==1.4.0
 pytest-timeout==2.4.0
 python-dotenv==1.2.2
-python-multipart==0.0.29
+python-multipart==0.0.31
 pywin32==311
 pywin32-ctypes==0.2.3
 PyYAML==6.0.3
@@ -75,7 +77,7 @@ ruff==0.15.15
 setproctitle==1.3.7
 sortedcontainers==2.4.0
 sse-starlette==3.4.4
-starlette==1.2.1
+starlette==1.3.1
 textual==8.2.7
 typing-inspection==0.4.2
 typing_extensions==4.15.0

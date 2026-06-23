@@ -68,7 +68,8 @@ async def test_metrics_requires_token_when_remote(tmp_path):
         app = create_app(d)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
             assert (await c.get("/metrics")).status_code == 401
-            assert (await c.get("/metrics?token=T")).status_code == 200
+            assert (await c.get("/metrics?token=T")).status_code == 400
+            assert (await c.get("/metrics", headers={"Authorization": "Bearer T"})).status_code == 200
     finally:
         await d.stop()
 

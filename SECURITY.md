@@ -25,8 +25,12 @@ to independently pass before anything could be submitted (FR-LIVE-002):
 | Operator age verified | `HPM_OPERATOR_AGE_VERIFIED` | `false` |
 | Jurisdiction allowed | `HPM_OPERATOR_JURISDICTION_ALLOWED` | `false` |
 | Risk acknowledged | `HPM_OPERATOR_ACKNOWLEDGED_RISK` | `false` |
+| Platform terms accepted | `HPM_OPERATOR_PLATFORM_TERMS_ACCEPTED` | `false` |
+| No bypass tools/proxies | `HPM_OPERATOR_NO_BYPASS_TOOLS` | `false` |
+| No manipulation/spam/coordinated misinformation | `HPM_OPERATOR_NO_MARKET_MANIPULATION` | `false` |
 | Red-team sign-off | `HPM_RED_TEAM_PASSED` (NFR-SEC-005) | `false` |
 | Geoblock check | live geoblock endpoint, **fail-closed** | blocks on error |
+| Risk decision matches intent | persisted risk decision | must approve the same intent |
 | Signing key present | configured secret store | absent |
 
 Additional guarantees:
@@ -40,7 +44,8 @@ Additional guarantees:
   freezes the adapter.
 - **Process isolation (NFR-SEC-007, optional).** `HPM_LIVE_PROCESS_ISOLATION=true`
   runs the locked adapter in its own OS process with a minimal line-delimited
-  JSON IPC surface; secret material lives only in the child process.
+  JSON IPC surface; the parent daemon does not construct the signing store/vault,
+  and secret material lives only in the child process.
 
 The system does **not** bypass geoblocks, age, jurisdiction, platform terms, or
 law. It ships with live execution disabled.
@@ -79,6 +84,9 @@ feeds — is **sanitized and tagged untrusted** before it can reach the model
 is flagged, and **tainted evidence is rejected by the risk engine** rather than
 silently trusted. The sanitizer is hardened against tab/zero-width/homoglyph and
 proximity-based bypass attempts (`tests/security/`).
+Market questions, descriptions, resolution rules, tags, and source links are
+normalized through the same untrusted-input path, with markup neutralized before
+dashboard or model exposure.
 
 Treat all market, social, and news content as adversarial data, never as
 instructions.
@@ -107,6 +115,9 @@ The dashboard binds `127.0.0.1` by default (NFR-SEC-006). A token
 the `/ws` WebSocket whenever the host is not localhost
 (`dashboard/server.py::_check_token`). Every money figure is labelled **PAPER**,
 and stale/locked/emergency states are highlighted.
+REST and `/metrics` require `Authorization: Bearer <token>`; query-string tokens
+are rejected. WebSocket auth uses the `hpm-token-<token>` subprotocol when
+non-localhost.
 
 > Binding the dashboard or MCP HTTP server to a non-localhost address exposes it
 > to your network. Always set a strong token and prefer a reverse proxy with TLS
@@ -117,7 +128,8 @@ and stale/locked/emergency states are highlighted.
 ## 6. Audit integrity & privacy
 
 - **Append-only, hash-chained audit log** (`audit/store.py`). Each event chains
-  to the previous; `verify_chain` detects any tampering or reordering.
+  to the previous; input/output hashes are computed over redacted payloads, and
+  `verify_chain` detects any tampering or reordering.
 - **Audit per tool call** (NFR-OBS-001) with full intent traceability —
   snapshot id, policy version, and evidence references on every record.
 - **Emergency stop** freezes new actions, cancels open paper orders, and records
@@ -130,10 +142,11 @@ and stale/locked/emergency states are highlighted.
 
 ## 7. Supply chain
 
-Dependencies are declared in `pyproject.toml` with lower-bound pins.
-`cryptography` is a core dependency (the encrypted secret store needs it at
-startup); `keyring` is an optional extra. Install only from trusted indexes and
-review lockfile changes before deploying.
+Dependencies are declared in `pyproject.toml` with security floors and locked in
+`constraints.txt`. `cryptography` is a core dependency (the encrypted secret
+store needs it at startup); `keyring` is an optional extra. Install only from
+trusted indexes, use the constraints file for reproducible installs, and run a
+dependency audit before deployment.
 
 ---
 

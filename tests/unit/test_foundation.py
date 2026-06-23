@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
+
 import pytest
 
+import hermes_pm
 from hermes_pm.data.discovery import DiscoveryEngine
 from hermes_pm.execution.economics import (
     break_even_probability,
@@ -16,6 +19,10 @@ from hermes_pm.util.hashing import GENESIS_HASH, canonical_json, chain_hash, has
 from hermes_pm.util.ids import idempotency_key, new_id
 from hermes_pm.util.sanitize import sanitize_untrusted
 from hermes_pm.util.timeutil import iso_to_ms, ms_to_iso, now_ms
+
+
+def test_package_version_matches_installed_metadata():
+    assert hermes_pm.__version__ == version("hermes-pm")
 
 
 # --------------------------------------------------------------------------- #

@@ -2,11 +2,14 @@
 
 Maps every requirement to its implementation and the test(s) that verify it.
 Status: **DONE** (implemented + tested), **SCOPE** (deliberate, documented MVP
-boundary - see notes). Full suite: 211 tests, all passing. Adds: contract tests
-(`integration/test_contracts.py`), MCP HTTP transport (`integration/test_mcp_http.py`),
-secret store (`security/test_secrets.py`), live-process isolation
-(`compliance/test_live_process.py`), hard simulations (`e2e/test_hard_sim.py`),
-and a Windows-native mutation harness (`mutation/test_mutation.py`).
+boundary - see notes). Full suite: 547 tests collected; the default local gate
+passes 544 and skips 3 live-gated tests, with the live marker run separately.
+Adds: contract tests (`integration/test_contracts.py`), MCP HTTP
+transport (`integration/test_mcp_http.py`), secret store (`security/test_secrets.py`),
+live-process isolation (`compliance/test_live_process.py`), hard simulations
+(`e2e/test_hard_sim.py`), network-gated live Polymarket coverage
+(`integration/test_live_polymarket.py`), and a Windows-native mutation harness
+(`mutation/test_mutation.py`).
 
 ## MCP server (SRS 10.1)
 
@@ -22,11 +25,11 @@ and a Windows-native mutation harness (`mutation/test_mutation.py`).
 
 | Req | Status | Implementation | Test |
 |---|---|---|---|
-| FR-MD-001 Gamma normalize | DONE | `data/polymarket_client.py::normalize_gamma_market` | covered via synthetic discovery shape |
+| FR-MD-001 Gamma normalize (outcomes, **outcome prices**, token/condition/question IDs, **tags**, resolution rules) | DONE | `data/polymarket_client.py::normalize_gamma_market` | `integration/test_contracts.py` (real 90-key payload shape), `integration/test_live_polymarket.py` (live API, gated) |
 | FR-MD-002 order-book-enabled gate | DONE | `data/discovery.py::is_tradable` | `unit/test_foundation.py::test_tradable_requires_orderbook_and_resolution` |
-| FR-MD-003/004 resolution rules required/reject ambiguous | DONE | `models.py::Market.has_clear_resolution`, `risk/engine.py` | `unit/test_risk_engine.py::test_reject_ambiguous_resolution` |
-| FR-MD-005 filters (topic/end/liquidity/volume/spread/OB/source/exclude) | DONE | `data/discovery.py::passes_filters`, `daemon/core.py::search_markets` (live liquidity/spread) | `unit/test_foundation.py::test_filters_*`, `integration/test_market_data.py` |
-| FR-DATA-001 WS market channels | DONE | `data/polymarket_client.py::stream` | (live path) |
+| FR-MD-003/004 resolution rules required/reject ambiguous (UMA-oracle source when no explicit URL) | DONE | `models.py::Market.has_clear_resolution`, `data/polymarket_client.py::_resolution_source`, `risk/engine.py` | `unit/test_risk_engine.py::test_reject_ambiguous_resolution`, `integration/test_contracts.py::test_normalize_ambiguous_market_has_no_clear_resolution` |
+| FR-MD-005 filters (topic/end/liquidity/volume/spread/OB/source/exclude) | DONE | `data/discovery.py::passes_filters` (static Gamma fields), `daemon/core.py::search_markets` (authoritative live order-book liquidity/spread) | `coverage/test_cov_data.py::test_passes_filters_min_liquidity_volume_spread`, `coverage/test_cov_daemon_mcp.py::test_search_markets_filters_and_limit`, `integration/test_live_polymarket.py` |
+| FR-DATA-001 WS market channels | DONE | `data/polymarket_client.py::stream`, `_snapshots_from_clob_event` (book, price_change, last_trade_price, best_bid_ask; lifecycle events accepted) | `coverage/test_cov_data.py::test_polymarket_stream_parses_ws_messages`, `integration/test_live_polymarket.py` (gated live path) |
 | FR-DATA-002 hot cache | DONE | `data/cache.py::OrderBookCache` | `integration/test_market_data.py::test_stream_updates_cache_and_persists` |
 | FR-DATA-003 reconcile WS vs REST / gaps | DONE | `data/market_data.py::_reconcile_loop` | `integration/test_market_data.py` |
 | FR-DATA-004 staleness flags; no order on stale | DONE | `data/cache.py::is_stale`, `risk/engine.py` | `unit/test_risk_engine.py::test_reject_stale_data`, `chaos/test_chaos.py::test_connectivity_loss_*` |
@@ -44,7 +47,7 @@ and a Windows-native mutation harness (`mutation/test_mutation.py`).
 | FR-SOC-005 X is delayed, not ms | DONE | `signals/social_x.py::_META latency_class=delayed` | `integration/test_signals.py::test_social_is_delayed_not_realtime` |
 | FR-SOC-006 provenance graph | DONE | `signals/registry.py::summary` provenance list | `integration/test_signals.py` |
 | FR-SOC-007 counter-signal search | DONE | `signals/registry.py::counter_signal_search` | `integration/test_signals.py::test_counter_signal_search` |
-| FR-EXT-001 plug-in adapters | DONE | `signals/registry.py::adapters`, `signals/external.py` | `integration/test_signals.py` |
+| FR-EXT-001 plug-in adapters | DONE | `signals/registry.py::adapters`, `signals/external.py` (weather, sports, crypto, macro, news, official_data) | `integration/test_signals.py::test_adapter_metadata_complete` |
 | FR-EXT-002 adapter metadata | DONE | `signals/base.py::AdapterMeta` | `integration/test_signals.py::test_adapter_metadata_complete` |
 | FR-EXT-003 weather metadata | DONE | `signals/external.py::WeatherAdapter` | `integration/test_signals.py` |
 | FR-EXT-004 sports metadata | DONE | `signals/external.py::SportsAdapter` | `integration/test_signals.py` |
@@ -85,7 +88,7 @@ and a Windows-native mutation harness (`mutation/test_mutation.py`).
 | Req | Status | Implementation | Test |
 |---|---|---|---|
 | FR-LIVE-001 disabled default | DONE | `config.py::live_enabled=False` | `compliance/test_compliance.py::test_live_disabled_by_default` |
-| FR-LIVE-002 all gates | DONE | `execution/live_adapter.py::ComplianceGate` | `compliance/test_compliance.py::test_all_gates_must_pass_even_with_flags` |
+| FR-LIVE-002 all gates | DONE | `execution/live_adapter.py::ComplianceGate` (legal/platform/no-bypass/no-manipulation, red-team, geoblock, intent-bound approval, signing vault) | `compliance/test_compliance.py::test_all_gates_must_pass_even_with_flags` |
 | FR-LIVE-003 geoblock | DONE | `polymarket_client.py::geoblock_check`, `live_adapter.py` | `compliance/test_compliance.py::test_geoblock_fail_closed` |
 | FR-LIVE-004 no raw params (reference-only) | DONE | `mcp/tools.py::live_place_order_intent` schema | `e2e/test_acceptance.py::test_ac006_*` |
 | FR-LIVE-005 vault isolates keys | DONE | `live_adapter.py::SigningVault` | `compliance/test_compliance.py::test_signing_vault_never_signs_or_exposes` |
@@ -126,12 +129,12 @@ and a Windows-native mutation harness (`mutation/test_mutation.py`).
 | NFR-REL-004 safe degradation | DONE | system runs without X (synthetic) | `integration/test_signals.py` |
 | NFR-REL-005 idempotency keys | DONE | intents/decisions/orders | `unit/test_audit.py::test_intent_idempotent_insert`, `test_paper_engine.py::test_idempotent_order_placement` |
 | NFR-SEC-001 OS keychain | DONE | `execution/secrets.py` (Env / EncryptedFile-Fernet+PBKDF2 / Keyring) behind `SigningVault` | `security/test_secrets.py` (encryption-at-rest, no-leak, locked-by-default) |
-| NFR-SEC-002 no secret leakage | DONE | `persistence/redact.py` | `security/test_security.py` |
+| NFR-SEC-002 no secret leakage | DONE | `persistence/redact.py`, `audit/store.py` redacted hashes | `security/test_security.py`, `unit/test_audit.py::test_audit_hashes_do_not_depend_on_raw_secret_values` |
 | NFR-SEC-003 strict schemas | DONE | `mcp/tools.py`, `mcp/server.py` | `security/test_security.py::test_mcp_schema_fuzz_rejects_garbage` |
-| NFR-SEC-004 untrusted sanitized | DONE | `util/sanitize.py` | `security/test_security.py`, `test_review_fixes.py::test_sanitizer_catches_hardened_cases` |
+| NFR-SEC-004 untrusted sanitized | DONE | `util/sanitize.py`, `models.py::Market`, `signals/base.py` | `security/test_security.py`, `test_review_fixes.py::test_sanitizer_catches_hardened_cases` |
 | NFR-SEC-005 red-team gate before live | DONE | `config.red_team_passed`, `ComplianceGate` | `security/test_review_fixes.py::test_red_team_gate_blocks_live` |
-| NFR-SEC-006 dashboard token if non-localhost | DONE | `dashboard/server.py::_check_token` (REST + /metrics + /ws) | `security/test_review_fixes.py::test_metrics_requires_token_when_remote` |
-| NFR-SEC-007 live adapter separate process | DONE | `execution/live_process.py` (subprocess host + `LiveProcessClient`, minimal JSON IPC, secrets only in child); daemon `live_process_isolation` flag | `compliance/test_live_process.py` |
+| NFR-SEC-006 dashboard token if non-localhost | DONE | `dashboard/server.py::_check_token` (REST + /metrics bearer; /ws subprotocol; query tokens rejected) | `security/test_constant_time_auth.py`, `security/test_review_fixes.py::test_metrics_requires_token_when_remote`, `coverage/test_cov_dashboard_cli.py::test_ws_accepts_when_not_localhost_with_valid_token` |
+| NFR-SEC-007 live adapter separate process | DONE | `execution/live_process.py` (subprocess host + `LiveProcessClient`, minimal JSON IPC, secrets only in child); daemon parent skips vault/store when isolated | `compliance/test_live_process.py` |
 | NFR-PRIV-001 local by default | DONE | SQLite local, no external calls in synthetic | by design |
 | NFR-PRIV-002 external LLM calls visible | DONE | system makes no LLM calls (it is the server) | by design |
 | NFR-PRIV-003 X data retention/deletion | DONE | `db.purge_signals_before`, `daemon.purge_old_signals` | `security/test_review_fixes.py::test_signal_purge` |
@@ -139,7 +142,7 @@ and a Windows-native mutation harness (`mutation/test_mutation.py`).
 | NFR-OBS-001 audit per tool call | DONE | `daemon/core.py::_audit_tool` | `e2e` audit-chain test |
 | NFR-OBS-002 intent traceability | DONE | snapshot_id + policy_version + evidence refs on records | `replay/test_replay.py` |
 | NFR-OBS-003 Prometheus metrics | DONE | `metrics/registry.py`, `/metrics` | `integration/test_dashboard.py::test_metrics_endpoint` |
-| NFR-OBS-004 ops metrics (lag/throttle/reconnect/X/dash latency) | DONE | `metrics/registry.py` + wiring in daemon/market_data/dashboard | `integration/test_dashboard.py::test_metrics_endpoint` |
+| NFR-OBS-004 ops metrics (lag/throttle/reconnect/X/fill errors/dash latency) | DONE | `metrics/registry.py` + wiring in daemon/market_data/signals/dashboard/paper execution | `integration/test_dashboard.py::test_metrics_endpoint`, `integration/test_signals.py::test_x_adapter_failure_increments_disconnect_metric`, `coverage/test_cov_daemon_mcp.py::test_paper_place_order_reject_decision_rejected` |
 
 ## Compliance, promotion, acceptance (SRS 18, 15.2, 19.2)
 

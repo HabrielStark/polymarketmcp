@@ -1,0 +1,18 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Hermes-PM wordmark</title>
+  <desc id="desc">Hermes-PM wordmark with the geometric rail-and-wing mark.</desc>
+  <rect width="1280" height="360" rx="36" fill="#11130F"/>
+  <g transform="translate(72 58) scale(.48)">
+    <rect width="512" height="512" rx="96" fill="#1C2018"/>
+    <path d="M146 128H196V384H146V128Z" fill="#F3EFE3"/>
+    <path d="M316 128H366V384H316V128Z" fill="#F3EFE3"/>
+    <path d="M191 235H321V286H191V235Z" fill="#F3EFE3"/>
+    <path d="M210 128H292L188 235H146L210 128Z" fill="#B7F34A"/>
+    <path d="M302 384H220L324 286H366L302 384Z" fill="#C97B45"/>
+    <circle cx="256" cy="260" r="23" fill="#11130F" stroke="#E85B4D" stroke-width="12"/>
+  </g>
+  <text x="360" y="165" fill="#F3EFE3" font-family="Fraunces, Georgia, serif" font-size="92" font-weight="900" letter-spacing="-2">Hermes-PM</text>
+  <text x="364" y="228" fill="#B9B5A6" font-family="IBM Plex Mono, Consolas, monospace" font-size="30" font-weight="500" letter-spacing="2">LOCAL PREDICTION-MARKET CONTROL PLANE</text>
+  <path d="M364 270H1120" stroke="#B7F34A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M364 294H846" stroke="#C97B45" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+</svg>

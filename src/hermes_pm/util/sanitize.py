@@ -110,6 +110,7 @@ def sanitize_untrusted(raw: str | None, max_len: int = MAX_LEN) -> SanitizedText
 
     text = _WS.sub("  ", text)
     text = _NEWLINES.sub("\n\n", text).strip()
+    text = text.replace("<", "[").replace(">", "]")
 
     truncated = False
     if len(text) > max_len:

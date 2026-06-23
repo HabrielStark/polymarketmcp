@@ -4,6 +4,78 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Brand system assets for Hermes-PM: minimal SVG mark, wordmark, social card,
+  generated key visual, video posters, and storyboard contact sheets.
+- Two rendered portfolio demos under `media/videos`: a 42-second motion-graphics
+  overview and a 58-second terminal/browser walkthrough, both rendered at
+  1920x1080, 60fps.
+- HyperFrames source projects and media runbook for rechecking and rerendering
+  the videos.
+
+## [0.1.2] - 2026-06-23
+
+Made the **live Polymarket integration actually work against the real API** — not
+just against hand-written mock payloads. Verified by probing the real public
+Gamma/CLOB APIs (no key required) and pinned by a network-gated live test.
+
+### Fixed
+
+- **Live discovery returned zero tradable markets.** The Gamma normalizer was
+  written against an assumed payload shape that the real API does not produce. On
+  live data every market came back `category="uncategorized"` and with an empty
+  `resolution_source`, so `has_clear_resolution` was always `False` and **every
+  live market was rejected as `ambiguous_or_missing_resolution_rules`** by both
+  discovery and the risk engine. Root-caused by probing the real API: it returns
+  no `category` field, leaves `resolutionSource` empty (markets resolve via the
+  UMA optimistic oracle named in `resolvedBy`), and carries the topic in the tag
+  taxonomy. `normalize_gamma_market` now:
+  - derives `category` from the inline tag taxonomy (`?include_tag=true`),
+    falling back to the parent event slug (Politics/Crypto/Sports/... — the real
+    categories the per-category risk cap depends on);
+  - records resolution provenance from the UMA resolver (`uma:<addr>`) when no
+    explicit `resolutionSource` URL exists, so genuinely-resolvable markets pass
+    while truly-ambiguous ones (no rules text, no resolver) still fail FR-MD-004;
+  - normalizes **outcome prices, liquidity, volume, and spread** (FR-MD-001 /
+    FR-MD-005), which were previously dropped entirely.
+  Verified live: 100/100 discovered markets now tradable, priced, and liquid,
+  across 5 real categories. (tests/integration/test_contracts.py,
+  tests/integration/test_live_polymarket.py)
+
+### Added
+
+- **FR-MD-005 microstructure filters** (`min_liquidity`, `min_volume`,
+  `max_spread`) on `DiscoveryEngine.passes_filters`, operating on the normalized
+  Gamma fields for the book-less discovery path; `daemon.search_markets` continues
+  to apply the authoritative live-order-book liquidity/spread filters.
+- **`Market` fields** `outcome_prices`, `liquidity_usd`, `volume_usd`,
+  `volume_24hr_usd`, `spread` (optional, back-compatible) plus an
+  `implied_yes_price` helper.
+- **Network-gated live integration test** (`tests/integration/test_live_polymarket.py`,
+  `live` marker). Skipped by default; run against the real public API with
+  `HPM_RUN_LIVE_TESTS=1`. This is the permanent executable guarantee behind
+  `HPM_MARKET_DATA_SOURCE=live`.
+
+### Hardened
+
+- Dashboard remote auth now rejects query-string tokens, uses bearer tokens for
+  REST/metrics, and uses a WebSocket subprotocol token for `/ws`.
+- Live execution gates now include platform terms, no-bypass/no-proxy
+  acknowledgement, no-manipulation acknowledgement, and intent-bound risk
+  approval. With process isolation enabled, the parent daemon does not construct
+  the signing vault or secret store.
+- Polymarket CLOB WebSocket parsing now handles documented `book`,
+  `price_change`, `last_trade_price`, and `best_bid_ask` events while safely
+  accepting lifecycle events that do not carry a book snapshot.
+- Operational metrics now cover X/social disconnects and fill-simulation errors
+  with regression tests.
+- Supply-chain pins now require fixed versions for `cryptography`,
+  `pydantic-settings`, `python-multipart`, `starlette`, and `pip`; verified with
+  `pip-audit==2.10.1` in an isolated audit environment.
+
 ## [0.1.1] - 2026-06-11
 
 Adversarial robustness pass — hardening real failure modes (not the happy path).

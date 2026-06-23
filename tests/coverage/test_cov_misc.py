@@ -43,6 +43,7 @@ from hermes_pm.persistence.db import Database
 from hermes_pm.persistence.redact import redact
 from hermes_pm.replay.engine import ReplayEngine
 from hermes_pm.risk.engine import RiskContext, RiskEngine
+from hermes_pm.signals.external import CryptoAdapter, MacroAdapter, OfficialDataAdapter
 from hermes_pm.signals.registry import SignalRegistry
 from hermes_pm.util.hashing import canonical_json, hash_obj, sha256_hex
 from hermes_pm.util.sanitize import sanitize_untrusted
@@ -688,6 +689,55 @@ def test_signal_adapter_catalog(settings, db):
     reg = SignalRegistry(settings, db, EventBus())
     names = {a["name"] for a in reg.adapter_catalog()}
     assert {"x_social", "weather", "sports", "news"} <= names
+
+
+async def test_external_adapters_emit_and_skip_by_category():
+    crypto = Market(
+        market_id="crypto-0", event_id="ev", condition_id="cond",
+        question="Will BTC rise?", category="crypto",
+        resolution_rules="r", resolution_source="s",
+    )
+    non_crypto = Market(
+        market_id="weather-0", event_id="ev", condition_id="cond",
+        question="Will it rain?", category="weather",
+        resolution_rules="r", resolution_source="s",
+    )
+    assert await CryptoAdapter().fetch(non_crypto) == []
+    crypto_sig = (await CryptoAdapter().fetch(crypto))[0]
+    crypto_counter = (await CryptoAdapter().fetch(crypto, counter=True))[0]
+    assert crypto_sig.adapter == "crypto"
+    assert crypto_sig.stance != crypto_counter.stance
+
+    macro_pos = Market(
+        market_id="macro-4", event_id="ev", condition_id="cond",
+        question="Will CPI surprise?", category="finance",
+        resolution_rules="r", resolution_source="s",
+    )
+    macro_neg = Market(
+        market_id="macro-0", event_id="ev", condition_id="cond",
+        question="Will GDP surprise?", category="macro",
+        resolution_rules="r", resolution_source="s",
+    )
+    assert await MacroAdapter().fetch(non_crypto) == []
+    assert (await MacroAdapter().fetch(macro_pos))[0].stance is SignalStance.BULLISH
+    assert (await MacroAdapter().fetch(macro_neg))[0].stance is SignalStance.BEARISH
+    assert (await MacroAdapter().fetch(macro_neg, counter=True))[0].stance is SignalStance.BULLISH
+
+    official_yes = Market(
+        market_id="official-0", event_id="ev", condition_id="cond",
+        question="Will the official source support YES?", category="official",
+        resolution_rules="r", resolution_source="official://source",
+    )
+    official_no = Market(
+        market_id="official-2", event_id="ev", condition_id="cond",
+        question="Will the official source support YES?", category="official",
+        resolution_rules="r", resolution_source="",
+    )
+    assert (await OfficialDataAdapter().fetch(official_yes))[0].stance is SignalStance.BULLISH
+    assert (await OfficialDataAdapter().fetch(official_no))[0].stance is SignalStance.BEARISH
+    assert (
+        await OfficialDataAdapter().fetch(official_no, counter=True)
+    )[0].stance is SignalStance.BULLISH
 
 
 async def test_counter_signal_search_gathers_offline(settings, db):

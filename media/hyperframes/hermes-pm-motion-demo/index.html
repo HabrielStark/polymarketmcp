@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-700-normal.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-800-normal.woff2") format("woff2");
+        font-weight: 800;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-900-normal.woff2") format("woff2");
+        font-weight: 900;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+        font-weight: 500;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+        font-weight: 600;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-700-normal.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #11130f;
+      }
+      body {
+        font-family: "IBM Plex Mono", Consolas, monospace;
+        color: #f3efe3;
+        font-variant-numeric: tabular-nums;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #11130f;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #11130f;
+      }
+      .scene:not(#scene-1) { opacity: 0; }
+      .paper { color: #f3efe3; }
+      .muted { color: #b9b5a6; }
+      .green { color: #b7f34a; }
+      .copper { color: #c97b45; }
+      .red { color: #e85b4d; }
+      .display {
+        font-family: "Fraunces", Georgia, serif;
+        font-weight: 900;
+        letter-spacing: 0;
+        line-height: 0.92;
+      }
+      .mono {
+        font-family: "IBM Plex Mono", Consolas, monospace;
+        letter-spacing: 0;
+      }
+      .grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.10;
+        background-image:
+          linear-gradient(90deg, rgba(243,239,227,.04) 1px, transparent 1px),
+          linear-gradient(rgba(243,239,227,.03) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(circle at 50% 50%, #000 0%, #000 62%, transparent 100%);
+      }
+      .signal-field {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: .20;
+        background:
+          linear-gradient(90deg, transparent 0 72%, rgba(183,243,74,.22) 72% 72.25%, transparent 72.25%),
+          linear-gradient(180deg, transparent 0 82%, rgba(201,123,69,.24) 82% 82.35%, transparent 82.35%);
+      }
+      .rule { height: 3px; background: #b7f34a; transform-origin: left center; }
+      .thin-rule { height: 1px; background: rgba(243,239,227,.20); transform-origin: left center; }
+      .label {
+        font-size: 22px;
+        line-height: 1;
+        color: #b9b5a6;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        border: 1px solid rgba(243,239,227,.18);
+        background: rgba(28,32,24,.76);
+        border-radius: 8px;
+        font-size: 23px;
+        color: #f3efe3;
+      }
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #b7f34a;
+      }
+      .scene-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 76px 104px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        z-index: 4;
+      }
+      #scene-1 .scene-content {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        justify-content: normal;
+        gap: 26px;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.03fr .97fr;
+        gap: 70px;
+        height: 100%;
+        align-items: center;
+      }
+      .hero-title {
+        font-size: 138px;
+        max-width: 820px;
+      }
+      .hero-sub {
+        margin-top: 30px;
+        max-width: 780px;
+        font-size: 35px;
+        line-height: 1.22;
+        color: #b9b5a6;
+      }
+      .key-visual {
+        width: 720px;
+        height: 646px;
+        border-radius: 26px;
+        overflow: hidden;
+        position: relative;
+        border: 1px solid rgba(243,239,227,.16);
+        box-shadow: 0 30px 90px rgba(0,0,0,.42);
+      }
+      .key-visual img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: saturate(.92) contrast(1.08);
+      }
+      .key-visual::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(17,19,15,.70), rgba(17,19,15,.06) 45%, rgba(17,19,15,.12));
+      }
+      .mark {
+        width: 126px;
+        height: 126px;
+      }
+      .topbar, .bottombar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .bottombar {
+        padding-top: 24px;
+        border-top: 1px solid rgba(243,239,227,.16);
+      }
+      .architecture {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 540px 1fr;
+        gap: 78px;
+        align-items: center;
+      }
+      .architecture .label,
+      .loop-wrap .label,
+      .verify-grid .label {
+        display: block;
+        margin-bottom: 24px;
+      }
+      .scene-title {
+        font-size: 104px;
+        max-width: 650px;
+      }
+      .scene-copy {
+        margin-top: 28px;
+        font-size: 30px;
+        line-height: 1.34;
+        color: #b9b5a6;
+        max-width: 620px;
+      }
+      .lane-stack {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+      }
+      .lane {
+        min-height: 172px;
+        padding: 28px;
+        border-radius: 12px;
+        background: rgba(28,32,24,.82);
+        border: 1px solid rgba(243,239,227,.14);
+        position: relative;
+      }
+      .lane strong {
+        display: block;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 42px;
+        font-weight: 850;
+        letter-spacing: 0;
+        margin-bottom: 12px;
+      }
+      .lane span {
+        display: block;
+        font-size: 21px;
+        line-height: 1.28;
+        color: #b9b5a6;
+      }
+      .lane::before {
+        content: "";
+        position: absolute;
+        left: 28px;
+        top: 20px;
+        width: 54px;
+        height: 5px;
+        background: #b7f34a;
+      }
+      .loop-wrap {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1fr 690px;
+        gap: 72px;
+        align-items: center;
+      }
+      .loop {
+        position: relative;
+        height: 640px;
+        border: 1px solid rgba(243,239,227,.14);
+        border-radius: 24px;
+        background: rgba(28,32,24,.72);
+        padding: 52px;
+      }
+      .loop-node {
+        position: absolute;
+        width: 270px;
+        padding: 22px 24px;
+        border-radius: 12px;
+        background: #11130f;
+        border: 1px solid rgba(243,239,227,.18);
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      .loop-node b {
+        display: block;
+        color: #b7f34a;
+        font-size: 18px;
+        letter-spacing: 0;
+        margin-bottom: 10px;
+      }
+      .n1 { left: 52px; top: 54px; }
+      .n2 { right: 52px; top: 54px; }
+      .n3 { right: 52px; bottom: 54px; }
+      .n4 { left: 52px; bottom: 54px; }
+      .connector {
+        position: absolute;
+        background: rgba(183,243,74,.82);
+        transform-origin: left center;
+      }
+      .c1 { left: 338px; top: 130px; width: 282px; height: 4px; }
+      .c2 { right: 184px; top: 192px; width: 4px; height: 252px; }
+      .c3 { left: 338px; bottom: 130px; width: 282px; height: 4px; }
+      .c4 { left: 184px; top: 192px; width: 4px; height: 252px; }
+      .verify-grid {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 58px;
+        align-items: center;
+      }
+      .proof-card {
+        padding: 32px;
+        min-height: 188px;
+        background: rgba(28,32,24,.86);
+        border: 1px solid rgba(243,239,227,.14);
+        border-radius: 14px;
+      }
+      .proof-card .num {
+        font-size: 72px;
+        font-weight: 800;
+        color: #b7f34a;
+        line-height: 1;
+      }
+      .proof-card .txt {
+        margin-top: 14px;
+        font-size: 25px;
+        color: #b9b5a6;
+        line-height: 1.25;
+      }
+      .terminal {
+        border-radius: 18px;
+        background: #0b0d0a;
+        border: 1px solid rgba(243,239,227,.16);
+        overflow: hidden;
+        box-shadow: 0 30px 90px rgba(0,0,0,.45);
+      }
+      .terminal-head {
+        height: 54px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 20px;
+        background: #1c2018;
+        border-bottom: 1px solid rgba(243,239,227,.12);
+      }
+      .term-dot { width: 13px; height: 13px; border-radius: 50%; background: #e85b4d; }
+      .term-dot:nth-child(2) { background: #c97b45; }
+      .term-dot:nth-child(3) { background: #b7f34a; }
+      .terminal pre {
+        padding: 34px;
+        font-size: 25px;
+        line-height: 1.42;
+        color: #f3efe3;
+        min-height: 400px;
+      }
+      .release {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 720px 1fr;
+        gap: 70px;
+        align-items: center;
+      }
+      .release .scene-title {
+        font-size: 124px;
+        max-width: 760px;
+      }
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 34px;
+      }
+      .transition-wipe {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        opacity: 0;
+      }
+      .transition-wipe span:nth-child(odd) { background: #b7f34a; }
+      .transition-wipe span:nth-child(even) { background: #c97b45; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="42" data-width="1920" data-height="1080">
+      <div id="scene-1" class="scene">
+        <div class="signal-field" data-layout-ignore></div>
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="topbar">
+            <img class="mark s1-mark" src="assets/hermes-pm-mark-open.svg" alt="Hermes-PM mark" />
+            <div class="label s1-label">PM-MCP-SRS-001 / portfolio release</div>
+          </div>
+          <div class="hero-grid">
+            <div>
+              <div class="rule s1-rule" style="width: 440px"></div>
+              <h1 class="display hero-title s1-title">Prediction markets, under control.</h1>
+              <p class="hero-sub s1-copy">A local MCP control plane for research, paper execution, deterministic risk, and replayable audit trails.</p>
+            </div>
+            <div class="key-visual s1-visual">
+              <img src="assets/hermes-pm-key-visual.png" alt="Hermes-PM key visual" />
+            </div>
+          </div>
+          <div class="bottombar s1-bottom">
+            <div class="pill"><span class="dot"></span> Paper-first by design</div>
+            <div class="pill"><span class="dot"></span> Live execution locked</div>
+            <div class="pill"><span class="dot"></span> 100% line + branch coverage</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-2" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="architecture">
+            <div>
+              <div class="label s2-label">not an exchange wrapper</div>
+              <h2 class="display scene-title s2-title">Five lanes around the agent.</h2>
+              <p class="scene-copy s2-copy">The LLM reasons and explains. The fast lane keeps market data, fills, limits, and audit state deterministic.</p>
+              <div class="rule s2-rule" style="width: 410px; margin-top: 34px"></div>
+            </div>
+            <div class="lane-stack">
+              <div class="lane s2-lane"><strong>Data</strong><span>Gamma, CLOB, synthetic, replay, cache, staleness.</span></div>
+              <div class="lane s2-lane"><strong>Risk</strong><span>Versioned policy, source freshness, exposure caps, machine reasons.</span></div>
+              <div class="lane s2-lane"><strong>Paper</strong><span>Pessimistic fills, partials, double-entry ledger, replay.</span></div>
+              <div class="lane s2-lane"><strong>Audit</strong><span>Hash chain, redaction, intent traceability, export.</span></div>
+              <div class="lane s2-lane"><strong>MCP</strong><span>45 tools, resources, prompts, stdio and Streamable HTTP.</span></div>
+              <div class="lane s2-lane"><strong>Live</strong><span>Reference-only, compliance-gated, process isolated, locked by default.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-3" class="scene">
+        <div class="signal-field" data-layout-ignore></div>
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="loop-wrap">
+            <div>
+              <div class="label s3-label">paper campaign loop</div>
+              <h2 class="display scene-title s3-title">A trade cannot skip the rails.</h2>
+              <p class="scene-copy s3-copy">Every idea becomes an intent, every intent meets the same deterministic gate, and every fill can be replayed from stored evidence.</p>
+              <div class="badge-row">
+                <div class="pill s3-pill"><span class="dot"></span> thesis + counter-thesis</div>
+                <div class="pill s3-pill"><span class="dot"></span> stale data rejected</div>
+                <div class="pill s3-pill"><span class="dot"></span> tainted evidence rejected</div>
+              </div>
+            </div>
+            <div class="loop">
+              <div class="connector c1 s3-conn"></div>
+              <div class="connector c2 s3-conn"></div>
+              <div class="connector c3 s3-conn"></div>
+              <div class="connector c4 s3-conn"></div>
+              <div class="loop-node n1 s3-node"><b>01 RESEARCH</b>Watchlist + official evidence.</div>
+              <div class="loop-node n2 s3-node"><b>02 INTENT</b>EV, limit, thesis, invalidation.</div>
+              <div class="loop-node n3 s3-node"><b>03 RISK</b>Approve, modify, or reject.</div>
+              <div class="loop-node n4 s3-node"><b>04 PAPER</b>Fill, ledger, postmortem.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-4" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="verify-grid">
+            <div>
+              <div class="label s4-label">release evidence</div>
+              <h2 class="display scene-title s4-title">Verified like software, not narrated like a demo.</h2>
+              <p class="scene-copy s4-copy">The public story is backed by current commands: full suite, branch coverage, static analysis, dependency audit, and live-gated public API checks.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 22px">
+              <div class="proof-card s4-card"><div class="num">547</div><div class="txt">tests collected across unit, integration, chaos, e2e, latency, mutation, and security.</div></div>
+              <div class="proof-card s4-card"><div class="num">100%</div><div class="txt">line and branch coverage on the final code path.</div></div>
+              <div class="proof-card s4-card"><div class="num">0</div><div class="txt">known dependency vulnerabilities after pinned security upgrades.</div></div>
+              <div class="proof-card s4-card"><div class="num">3</div><div class="txt">live-gated Polymarket API tests passing by explicit opt-in.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-5" class="scene">
+        <div class="signal-field" data-layout-ignore></div>
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="release">
+            <div>
+              <img class="mark s5-mark" src="assets/hermes-pm-mark-close.svg" alt="Hermes-PM mark" />
+              <h2 class="display scene-title s5-title">Open-source ready.</h2>
+              <p class="scene-copy s5-copy">Show the system. Run the demo. Point agents at the MCP server. Keep live execution locked until every gate is real.</p>
+              <div class="badge-row">
+                <div class="pill s5-pill"><span class="dot"></span> SRS traceable</div>
+                <div class="pill s5-pill"><span class="dot"></span> GitHub ready</div>
+                <div class="pill s5-pill"><span class="dot"></span> Portfolio grade</div>
+              </div>
+            </div>
+            <div class="terminal s5-terminal">
+              <div class="terminal-head"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="label" style="margin-left: 14px">final local gate</span></div>
+              <pre><span class="green">$ pytest -q</span>
+544 passed, 3 skipped
+
+<span class="green">$ coverage report</span>
+TOTAL 3667 statements
+100% line + branch
+
+<span class="green">$ pip-audit</span>
+No known vulnerabilities found</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="transition-wipe" data-layout-ignore>
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      function enterScene1() {
+        tl.from(".s1-mark", { scale: .72, opacity: 0, duration: .55, ease: "back.out(1.4)" }, .18);
+        tl.from(".s1-label", { x: 40, opacity: 0, duration: .42, ease: "power3.out" }, .28);
+        tl.from(".s1-rule", { scaleX: 0, duration: .70, ease: "expo.out" }, .42);
+        tl.from(".s1-title", { y: 80, opacity: 0, duration: .76, ease: "power4.out" }, .52);
+        tl.from(".s1-copy", { x: -44, opacity: 0, duration: .58, ease: "sine.out" }, .82);
+        tl.from(".s1-visual", { scale: .92, x: 70, opacity: 0, duration: .82, ease: "power2.out" }, .64);
+        tl.from(".s1-bottom .pill", { y: 26, opacity: 0, duration: .44, stagger: .11, ease: "circ.out" }, 1.18);
+      }
+      function wipe(from, to, t) {
+        tl.set(to, { zIndex: 3 }, t);
+        tl.set(".transition-wipe", { opacity: 1 }, t);
+        tl.fromTo(".transition-wipe span", { scaleY: 0, transformOrigin: "top" }, { scaleY: 1, duration: .24, stagger: .025, ease: "power4.inOut" }, t);
+        tl.to(from, { opacity: 0, duration: .01 }, t + .30);
+        tl.to(to, { opacity: 1, duration: .01 }, t + .30);
+        tl.fromTo(".transition-wipe span", { scaleY: 1, transformOrigin: "bottom" }, { scaleY: 0, duration: .28, stagger: .025, ease: "expo.inOut" }, t + .34);
+        tl.set(".transition-wipe", { opacity: 0 }, t + .86);
+      }
+      function enterScene2(t) {
+        tl.from(".s2-label", { x: -40, opacity: 0, duration: .44, ease: "power3.out" }, t + .18);
+        tl.from(".s2-title", { y: 72, opacity: 0, duration: .66, ease: "expo.out" }, t + .26);
+        tl.from(".s2-copy", { scale: .98, opacity: 0, duration: .52, ease: "sine.out" }, t + .56);
+        tl.from(".s2-rule", { scaleX: 0, duration: .58, ease: "power4.out" }, t + .76);
+        tl.from(".s2-lane", { y: 42, opacity: 0, rotation: -1.6, duration: .52, stagger: .07, ease: "back.out(1.2)" }, t + .38);
+      }
+      function enterScene3(t) {
+        tl.from(".s3-label", { y: -24, opacity: 0, duration: .38, ease: "circ.out" }, t + .18);
+        tl.from(".s3-title", { x: -74, opacity: 0, duration: .72, ease: "power4.out" }, t + .28);
+        tl.from(".s3-copy", { y: 34, opacity: 0, duration: .55, ease: "sine.out" }, t + .62);
+        tl.from(".s3-pill", { scale: .92, opacity: 0, duration: .36, stagger: .09, ease: "back.out(1.6)" }, t + .95);
+        tl.from(".s3-node", { scale: .86, opacity: 0, duration: .46, stagger: .13, ease: "expo.out" }, t + .38);
+        tl.from(".s3-conn", { scaleX: 0, scaleY: 0, duration: .48, stagger: .08, ease: "power3.out" }, t + .98);
+      }
+      function enterScene4(t) {
+        tl.from(".s4-label", { x: 40, opacity: 0, duration: .36, ease: "power2.out" }, t + .18);
+        tl.from(".s4-title", { y: 60, opacity: 0, duration: .72, ease: "expo.out" }, t + .26);
+        tl.from(".s4-copy", { opacity: 0, scale: .98, duration: .54, ease: "sine.out" }, t + .62);
+        tl.from(".s4-card", { y: 54, opacity: 0, duration: .46, stagger: .10, ease: "back.out(1.25)" }, t + .36);
+      }
+      function enterScene5(t) {
+        tl.from(".s5-mark", { scale: .70, opacity: 0, duration: .48, ease: "back.out(1.7)" }, t + .18);
+        tl.from(".s5-title", { x: -72, opacity: 0, duration: .68, ease: "power4.out" }, t + .34);
+        tl.from(".s5-copy", { y: 34, opacity: 0, duration: .52, ease: "sine.out" }, t + .72);
+        tl.from(".s5-pill", { y: 22, opacity: 0, duration: .38, stagger: .08, ease: "circ.out" }, t + .98);
+        tl.from(".s5-terminal", { x: 74, opacity: 0, scale: .96, duration: .72, ease: "expo.out" }, t + .48);
+        tl.to("#scene-5", { opacity: 0, duration: .90, ease: "sine.inOut" }, 40.8);
+      }
+      tl.to(".signal-field", { x: -28, y: 18, duration: 42, ease: "none" }, 0);
+      tl.to(".grain", { x: -36, y: 24, duration: 42, ease: "none" }, 0);
+      enterScene1();
+      wipe("#scene-1", "#scene-2", 7.2);
+      enterScene2(8.0);
+      wipe("#scene-2", "#scene-3", 15.0);
+      enterScene3(15.8);
+      wipe("#scene-3", "#scene-4", 23.2);
+      enterScene4(24.0);
+      wipe("#scene-4", "#scene-5", 31.2);
+      enterScene5(32.0);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

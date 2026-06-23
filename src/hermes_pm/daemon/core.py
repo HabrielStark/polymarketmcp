@@ -68,7 +68,7 @@ class TradingDaemon:
         self.metrics = Metrics()
         self.source = make_source(settings)
         self.market_data = MarketDataEngine(settings, self.source, self.cache, self.db, self.bus)
-        self.signals = SignalRegistry(settings, self.db, self.bus)
+        self.signals = SignalRegistry(settings, self.db, self.bus, self.metrics)
         self.intents = IntentService(self.db, settings.default_risk_policy)
         self.risk = RiskEngine()
         self.paper = PaperEngine(self.db, self.cache, self.bus, self.audit, settings.default_risk_policy)
@@ -78,7 +78,12 @@ class TradingDaemon:
         self.lessons = LessonService(self.db, self.bus)
         self.hermes = HermesBridge(settings.data_dir)
         self.live = LiveAdapter(
-            settings, self.audit, self.db.get_risk_decision, self._geoblock_check
+            settings,
+            self.audit,
+            self.db.get_risk_decision,
+            self._geoblock_check,
+            load_vault=not settings.live_process_isolation,
+            process_isolated=settings.live_process_isolation,
         )
         self._emergency = bool(self.db.kv_get("emergency_stop", False))
         self._started = False
@@ -333,8 +338,16 @@ class TradingDaemon:
     def search_markets(self, filters: dict[str, Any] | None = None, limit: int = 50) -> list[dict]:
         filters = filters or {}
         markets = self.market_data.markets or self.db.list_markets()
-        wl = DiscoveryEngine.build_watchlist(markets, {**filters, "require_tradable": False})
-        min_liq = filters.get("min_liquidity_usd")
+        # The live order book is authoritative for liquidity/spread here, so apply
+        # those against it below. Volume has no order-book equivalent, so keep the
+        # static Gamma min_volume filter in the discovery pass.
+        static_filters = {
+            k: v
+            for k, v in filters.items()
+            if k not in ("min_liquidity", "max_spread", "min_liquidity_usd")
+        }
+        wl = DiscoveryEngine.build_watchlist(markets, {**static_filters, "require_tradable": False})
+        min_liq = filters.get("min_liquidity_usd", filters.get("min_liquidity"))
         max_spread = filters.get("max_spread")
         out = []
         for m in wl:
@@ -449,6 +462,10 @@ class TradingDaemon:
     def purge_old_signals(self, retention_hours: float = 168.0) -> dict[str, Any]:
         """Enforce social/external data retention (NFR-PRIV-003, COMP-006)."""
         before = now_ms() - int(retention_hours * 3_600_000)
+        if retention_hours <= 0:
+            # Retain nothing: include signals created in the same millisecond as
+            # the purge request, avoiding a race in fast local/coverage runs.
+            before += 1
         removed = self.db.purge_signals_before(before)
         self.audit.append("signals_purged", actor="system",
                           outputs={"removed": removed, "retention_hours": retention_hours})
@@ -678,6 +695,7 @@ class TradingDaemon:
         try:
             order = self.paper.place_order(campaign, intent, decision)
         except ValidationError as exc:
+            self.metrics.fill_sim_errors.inc()
             return {"status": "rejected", "error": exc.to_dict()}
         self.metrics.fills.inc(len(order.fills))
         self.metrics.lat_order.observe((time.perf_counter() - t0) * 1000)

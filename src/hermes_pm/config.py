@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     operator_age_verified: bool = False
     operator_jurisdiction_allowed: bool = False
     operator_acknowledged_risk: bool = False
+    operator_platform_terms_accepted: bool = False
+    operator_no_bypass_tools: bool = False
+    operator_no_market_manipulation: bool = False
     # NFR-SEC-005: prompt-injection / red-team suite must be signed off before live.
     red_team_passed: bool = False
 

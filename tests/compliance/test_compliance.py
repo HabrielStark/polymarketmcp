@@ -27,7 +27,10 @@ async def test_live_disabled_by_default(daemon):
 async def test_all_gates_must_pass_even_with_flags(monkeypatch):
     # Even if every operator flag is set, the locked vault keeps it blocked.
     adapter, db = _adapter(live_enabled=True, operator_age_verified=True,
-                           operator_jurisdiction_allowed=True, operator_acknowledged_risk=True)
+                           operator_jurisdiction_allowed=True, operator_acknowledged_risk=True,
+                           operator_platform_terms_accepted=True,
+                           operator_no_bypass_tools=True,
+                           operator_no_market_manipulation=True)
     out = await adapter.place_order_intent("ti", "rd", "confirm")
     assert out["status"] == "blocked"
     assert out["compliance_state"]["signing_vault_available"] is False
@@ -59,6 +62,9 @@ async def test_age_jurisdiction_gates_reported(monkeypatch):
     )
     assert state["operator_age_verified"] is False
     assert state["jurisdiction_allowed"] is False
+    assert state["platform_terms_accepted"] is False
+    assert state["no_bypass_tools"] is False
+    assert state["no_market_manipulation"] is False
     assert state["all_pass"] is False
 
 

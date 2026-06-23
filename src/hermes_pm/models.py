@@ -184,11 +184,37 @@ class Market(BaseModel):
     end_time: str | None = None  # ISO-8601
     enable_order_book: bool = False
     tags: list[str] = Field(default_factory=list)
+    is_untrusted: bool = False
+    suspected_injection: bool = False
+    injection_flags: list[str] = Field(default_factory=list)
+
+    # Live microstructure / sizing fields populated from the Gamma payload.
+    # FR-MD-001 mandates normalizing *outcome prices*; FR-MD-005 mandates filters
+    # by *liquidity, volume and spread*. They are optional so synthetic/replay
+    # markets (which derive them from their books) and older recordings still
+    # validate; the live normalizer fills every one of them.
+    outcome_prices: dict[str, float] = Field(default_factory=dict)  # outcome -> implied prob
+    liquidity_usd: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
+    volume_usd: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
+    volume_24hr_usd: float | None = Field(default=None, ge=0.0, allow_inf_nan=False)
+    spread: float | None = Field(default=None, ge=0.0, le=1.0, allow_inf_nan=False)
 
     @property
     def has_clear_resolution(self) -> bool:
-        """FR-MD-003/004: rules + source must be present and unambiguous."""
+        """FR-MD-003/004: rules + source must be present and unambiguous.
+
+        ``resolution_source`` is satisfied either by an explicit source URL or by
+        a configured on-chain resolver (UMA optimistic oracle), which is how the
+        vast majority of real Polymarket markets actually resolve."""
         return bool(self.resolution_rules.strip()) and bool(self.resolution_source.strip())
+
+    @property
+    def implied_yes_price(self) -> float | None:
+        """Implied YES probability from normalized Gamma outcome prices, if any."""
+        for outcome, price in self.outcome_prices.items():
+            if outcome.strip().upper() in ("YES", "TRUE"):
+                return price
+        return None
 
 
 class Token(BaseModel):

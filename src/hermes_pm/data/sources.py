@@ -67,6 +67,11 @@ class SyntheticSource:
             self._seq[yes] = self._seq[no] = 0
             self._yes_of_market[mid] = yes
             self._no_of_market[mid] = no
+            # Realistic, seed-deterministic microstructure so FR-MD-005 liquidity/
+            # volume/spread filters are exercisable fully offline. The single
+            # non-order-book market is also the thin/illiquid, wide-spread one.
+            liquid = enable_ob
+            depth = self._base_size * (8.0 if liquid else 0.5)
             self._markets.append(
                 Market(
                     market_id=mid,
@@ -82,7 +87,12 @@ class SyntheticSource:
                     source_links=([] if not rules else [f"https://example.org/{cat}/{i}"]),
                     end_time="2026-12-31T23:59:59Z",
                     enable_order_book=enable_ob,
-                    tags=[cat, "synthetic", "liquid" if enable_ob else "illiquid"],
+                    tags=[cat, "synthetic", "liquid" if liquid else "illiquid"],
+                    outcome_prices={"YES": p0, "NO": round(1 - p0, 2)},
+                    liquidity_usd=round(depth * 2.0, 2),
+                    volume_usd=round(depth * 12.0, 2),
+                    volume_24hr_usd=round(depth * 0.5, 2),
+                    spread=(0.02 if liquid else 0.08),
                 )
             )
 

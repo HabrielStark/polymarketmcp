@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Hermes-PM mark</title>
+  <desc id="desc">A geometric H mark built from two decision rails, a messenger wing, and an audit decision dot.</desc>
+  <rect width="512" height="512" rx="96" fill="#11130F"/>
+  <path d="M146 128H196V384H146V128Z" fill="#F3EFE3"/>
+  <path d="M316 128H366V384H316V128Z" fill="#F3EFE3"/>
+  <path d="M191 235H321V286H191V235Z" fill="#F3EFE3"/>
+  <path d="M210 128H292L188 235H146L210 128Z" fill="#B7F34A"/>
+  <path d="M302 384H220L324 286H366L302 384Z" fill="#C97B45"/>
+  <circle cx="256" cy="260" r="23" fill="#11130F" stroke="#E85B4D" stroke-width="12"/>
+  <path d="M122 111H390" stroke="#F3EFE3" stroke-width="10" stroke-linecap="round" opacity=".28"/>
+  <path d="M122 401H390" stroke="#F3EFE3" stroke-width="10" stroke-linecap="round" opacity=".28"/>
+</svg>

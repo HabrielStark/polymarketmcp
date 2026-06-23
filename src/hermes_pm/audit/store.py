@@ -57,12 +57,14 @@ class AuditStore:
         with self._lock:
             seq = self._last_seq + 1
             references = references or {}
+            safe_inputs = redact(inputs)
+            safe_outputs = redact(outputs)
             payload = {
                 "type": type,
                 "actor": actor,
                 "summary": summary,
-                "inputs": redact(inputs),
-                "outputs": redact(outputs),
+                "inputs": safe_inputs,
+                "outputs": safe_outputs,
                 "references": references,
                 "campaign_id": campaign_id,
                 "timestamp_ms": now_ms(),
@@ -72,8 +74,8 @@ class AuditStore:
                 type=type,
                 actor=actor,
                 summary=summary,
-                input_hash=hash_obj(inputs) if inputs is not None else "",
-                output_hash=hash_obj(outputs) if outputs is not None else "",
+                input_hash=hash_obj(safe_inputs) if inputs is not None else "",
+                output_hash=hash_obj(safe_outputs) if outputs is not None else "",
                 references=references,
                 payload=payload,
                 timestamp=now_iso(),

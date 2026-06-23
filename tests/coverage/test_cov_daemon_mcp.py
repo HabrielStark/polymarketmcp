@@ -215,6 +215,8 @@ async def test_search_markets_filters_and_limit(daemon):
     base = daemon.search_markets({})
     assert len(base) >= 2
     assert len(daemon.search_markets({"min_liquidity_usd": 1e12})) < len(base)  # 348
+    assert len(daemon.search_markets({"min_liquidity": 1e12})) < len(base)  # public alias
+    assert len(daemon.search_markets({"min_volume": 1e12})) < len(base)  # static Gamma volume
     assert len(daemon.search_markets({"max_spread": -1.0})) < len(base)  # 350
     assert len(daemon.search_markets({}, limit=1)) == 1  # limit break (354)
 
@@ -316,6 +318,7 @@ async def test_paper_place_order_reject_decision_rejected(daemon):
     assert rc["decision"] == "reject"
     out = daemon.paper_place_order(bad["trade_intent_id"], rc["risk_decision_id"])  # 680-681
     assert out["status"] == "rejected" and "error" in out
+    assert "hpm_fill_sim_errors_total 1.0" in daemon.metrics.render().decode()
 
 
 async def test_paper_cancel_order(daemon):
@@ -357,6 +360,8 @@ async def test_purge_old_signals(populated):
     daemon, _cid = populated
     out = daemon.purge_old_signals(retention_hours=0.0)
     assert "removed" in out and out["retention_hours"] == 0.0
+    keep = daemon.purge_old_signals(retention_hours=168.0)
+    assert "removed" in keep and keep["retention_hours"] == 168.0
     purged = daemon.get_audit_events(event_type="signals_purged")
     assert purged and all(e["type"] == "signals_purged" for e in purged)
 

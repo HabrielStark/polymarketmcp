@@ -5,4 +5,4 @@ research and simulated execution to an MCP-capable LLM agent behind deterministi
 risk gates, a hash-chained audit trail, and a compliance-locked live boundary.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"

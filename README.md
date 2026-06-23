@@ -1,3 +1,19 @@
+<p align="center">
+  <img src="assets/brand/hermes-pm-wordmark.svg" alt="Hermes-PM" width="560" />
+</p>
+
+<p align="center">
+  <strong>Local MCP prediction-market control plane with paper execution, deterministic risk gates, and replayable audit logs.</strong>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> |
+  <a href="#quickstart">Quickstart</a> |
+  <a href="#demo-videos">Demo videos</a> |
+  <a href="hermes_mcp_prediction_market_srs.md">SRS</a> |
+  <a href="SECURITY.md">Security</a>
+</p>
+
 # Hermes-Integrated MCP Prediction-Market Agent
 
 A **local, low-latency, paper-trading-first laboratory** that lets an MCP-capable
@@ -13,6 +29,21 @@ Reference implementation of **PM-MCP-SRS-001** (`hermes_mcp_prediction_market_sr
 > jurisdiction, age, geoblock, red-team, and signing-vault gate must pass before
 > anything could ever be submitted. The MVP is a fast paper laboratory with agent
 > supervision - not an uncontrolled money bot.
+
+---
+
+## Demo videos
+
+The repository includes two rendered 1080p/60fps MP4 demos plus the HyperFrames
+source compositions used to produce them.
+
+| Demo | What it shows | File |
+|------|---------------|------|
+| ![Motion demo poster](assets/brand/hermes-pm-motion-poster.png) | A polished motion-graphics overview of the product story, architecture lanes, risk loop, proof gates, and open-source positioning. | [`media/videos/hermes-pm-motion-demo.mp4`](media/videos/hermes-pm-motion-demo.mp4) |
+| ![Terminal walkthrough poster](assets/brand/hermes-pm-terminal-poster.png) | A screen-recording-style walkthrough: terminal commands, localhost dashboard, GitHub README preview, and final verification commands. | [`media/videos/hermes-pm-terminal-walkthrough.mp4`](media/videos/hermes-pm-terminal-walkthrough.mp4) |
+
+Brand and video source files live under [`assets/brand`](assets/brand) and
+[`media`](media). The visual system is documented in [`DESIGN.md`](DESIGN.md).
 
 ---
 
@@ -67,11 +98,13 @@ Requires Python 3.11+.
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -U pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -U pip==26.1.2
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]" --constraint constraints.txt
 ```
 
-(Linux/macOS: use `./.venv/bin/python`.)
+(Linux/macOS: use `./.venv/bin/python`.) `constraints.txt` pins the verified
+dependency set; regenerate it only after an intentional upgrade and full
+verification.
 
 ## Quickstart
 
@@ -161,6 +194,7 @@ Environment variables use the `HPM_` prefix. Key settings:
 | `HPM_DASHBOARD_TOKEN` | `None` | Required for all REST + `/metrics` + `/ws` when non-localhost |
 | `HPM_LIVE_ENABLED` | `False` | Insufficient alone - every compliance gate must also pass |
 | `HPM_OPERATOR_AGE_VERIFIED` / `_JURISDICTION_ALLOWED` / `_ACKNOWLEDGED_RISK` | `False` | Live eligibility gates |
+| `HPM_OPERATOR_PLATFORM_TERMS_ACCEPTED` / `_NO_BYPASS_TOOLS` / `_NO_MARKET_MANIPULATION` | `False` | Platform, no-circumvention, and market-integrity gates |
 | `HPM_RED_TEAM_PASSED` | `False` | Prompt-injection red-team sign-off required before live (NFR-SEC-005) |
 | `HPM_X_API_ENABLED` / `HPM_X_API_BEARER_TOKEN` | `False` / `None` | Official X API only; offline synthetic otherwise |
 
@@ -177,11 +211,13 @@ prohibited behaviour.
 
 - Secrets are **never** returned by any tool, resource, dashboard endpoint, log,
   or audit export (audit exports are redacted by key name).
-- All external text (markets, X, news) is **sanitized and tagged untrusted**
+- All external text (market metadata, X, news, weather/sports) is **sanitized and tagged untrusted**
   before reaching the model; suspected prompt-injection is flagged and tainted
   evidence is rejected by the risk engine.
-- The **signing vault never exposes key material** and is locked; the live adapter
-  is reference-only and returns `blocked` until every gate passes.
+- The **signing vault never exposes key material** and is locked; when
+  `HPM_LIVE_PROCESS_ISOLATION=true`, only the child live process constructs the
+  vault/secret store. The live adapter is reference-only and returns `blocked`
+  until every gate passes.
 - The **audit log is append-only and hash-chained**; `verify_chain` detects any
   tampering or reordering. Emergency stop freezes new actions, cancels open paper
   orders, and records an audit event.
@@ -189,14 +225,21 @@ prohibited behaviour.
 ## Testing
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q                  # full suite (211 tests)
+.\.venv\Scripts\python.exe -m pytest -q                  # full suite (547 collected; 3 live-gated skips)
 .\.venv\Scripts\python.exe -m pytest tests/latency -q    # NFR latency benchmarks
 .\.venv\Scripts\python.exe -m ruff check src tests       # static analysis (clean)
+
+# Opt-in: exercise the REAL Polymarket public API (no key needed). Skipped by default.
+$env:HPM_RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m pytest -m live -q
 ```
 
-211 tests across `unit, integration, security, compliance, chaos, replay,
-property (Hypothesis fuzz), mutation, latency, e2e` — including contract tests for
-the real Polymarket/X clients, a real MCP Streamable-HTTP handshake, encrypted
+547 tests across `unit, integration, security, compliance, chaos, replay,
+property (Hypothesis fuzz), mutation, latency, e2e` at **100% line+branch
+coverage** — including contract tests that pin the **real ~90-key Gamma payload
+shape** (categorization from the tag taxonomy, UMA-oracle resolution, outcome
+prices, liquidity/volume/spread), a **network-gated live test** that hits the
+real Polymarket API (`tests/integration/test_live_polymarket.py`, run with
+`HPM_RUN_LIVE_TESTS=1`), a real MCP Streamable-HTTP handshake, encrypted
 secret-store, isolated live-process, and hard concurrency/stress simulations.
 Coverage highlights:
 
@@ -223,20 +266,21 @@ All eight acceptance criteria pass (`tests/e2e/test_acceptance.py`). Coverage:
 | Group | Status |
 |---|---|
 | MCP-SR-001..005 | Implemented (stdio + **Streamable HTTP** with localhost bind, Origin/DNS-rebinding protection, bearer token; strict schemas, no shell, stderr-only on stdio). |
-| FR-MD-001..005 | Implemented (Gamma normalize, order-book + resolution eligibility, filters incl. live liquidity/spread). |
-| FR-DATA-001..006 | Implemented (WS+REST, hot cache, reconcile/gap detection, staleness, snapshot recording, rate-limit handling). |
+| FR-MD-001..005 | Implemented and **verified against the real Gamma/CLOB API** (normalizes outcomes, outcome prices, token/condition/question IDs, tags→category, liquidity/volume/spread; resolution eligibility via explicit source *or* the UMA oracle; topic/end/liquidity/volume/spread filters — static for discovery, live order-book for execution). Network-gated live test: `tests/integration/test_live_polymarket.py`. |
+| FR-DATA-001..006 | Implemented (documented CLOB WS events + REST, hot cache, reconcile/gap detection, staleness, snapshot recording, rate-limit handling). |
 | FR-SOC-001..007 | Implemented (official-API-only, provenance, sanitization, multi-dim summary, counter-signal search). |
-| FR-EXT-001..005 | Implemented (plug-in adapters + full source metadata; weather/sports fields; stale-vs-horizon reject). |
+| FR-EXT-001..005 | Implemented (plug-in adapters + full source metadata; weather/sports/crypto/macro/official-data/news fields; stale-vs-horizon reject). |
 | FR-TI-001..006 | Implemented (intents not orders, required fields, EV/break-even, thesis+counter, similar-decision recall). |
 | FR-RISK-001..007 | Implemented (single deterministic engine, all limits, conservative defaults, machine reasons, versioned policy). |
 | FR-PAPER-001..007 | Implemented (limit + marketable fills, partials, pessimistic, double-entry ledger, snapshot provenance). |
-| FR-LIVE-001..008 | Implemented as **locked** (disabled default, all gates, geoblock, reference-only, vault isolation, cancel-only, freeze). |
+| FR-LIVE-001..008 | Implemented as **locked** (disabled default, legal/platform/no-bypass/no-manipulation gates, geoblock fail-closed, intent-bound risk approval, reference-only, vault isolation, cancel-only, freeze). |
 | FR-LEARN-001..006 | Implemented (postmortems, classification, structured + compact lessons, no single-lucky-trade promotion). |
 | FR-DASH-001..006 | Implemented (local URL, all panels, searchable timeline, trade-detail "why" panel, emergency + export controls, unsafe-state highlighting). |
 | NFR-LAT-001..007 | Met + benchmarked. |
 | NFR-REL-001..005 | Met (persist-before-ack, restart recovery, stale on WS loss, idempotency). |
-| NFR-SEC-002..006 | Met (no secret leakage, strict schemas, sanitization, red-team gate, dashboard token). || NFR-PRIV-001..004 | Met (local-by-default, retention purge, redacted export). |
-| NFR-OBS-001..004 | Met (audit per tool call, traceability, Prometheus metrics incl. throttles/lag/reconnects/push latency). |
+| NFR-SEC-001..007 | Met (secret stores, no secret leakage, strict schemas, sanitization, red-team gate, dashboard bearer/subprotocol token, live-process isolation). |
+| NFR-PRIV-001..004 | Met (local-by-default, retention purge, redacted export). |
+| NFR-OBS-001..004 | Met (audit per tool call, traceability, Prometheus metrics incl. throttles/lag/reconnects/X disconnects/fill-sim errors/push latency). |
 | COMP-001..008, PC-001..006, AC-001..008 | Met. |
 
 ### Previously-deferred items — now CLOSED with code + tests

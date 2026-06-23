@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-700-normal.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-800-normal.woff2") format("woff2");
+        font-weight: 800;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Fraunces";
+        src: url("assets/fonts/fraunces-latin-900-normal.woff2") format("woff2");
+        font-weight: 900;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+        font-weight: 500;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+        font-weight: 600;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-latin-700-normal.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #11130f;
+      }
+      body {
+        color: #f3efe3;
+        font-family: "IBM Plex Mono", Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #11130f;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #11130f;
+      }
+      .scene:not(#scene-1) {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .scene-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 72px 86px;
+        display: flex;
+        flex-direction: column;
+        gap: 26px;
+        z-index: 3;
+      }
+      .display {
+        font-family: "Fraunces", Georgia, serif;
+        font-weight: 900;
+        letter-spacing: 0;
+        line-height: .94;
+      }
+      .label {
+        color: #b9b5a6;
+        font-size: 22px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+      .green { color: #b7f34a; }
+      .copper { color: #c97b45; }
+      .red { color: #e85b4d; }
+      .muted { color: #b9b5a6; }
+      .grain {
+        position: absolute;
+        inset: 0;
+        opacity: .10;
+        background-image:
+          linear-gradient(90deg, rgba(243,239,227,.035) 1px, transparent 1px),
+          linear-gradient(rgba(243,239,227,.028) 1px, transparent 1px);
+        background-size: 58px 58px;
+      }
+      .desktop {
+        height: 100%;
+        border: 1px solid rgba(243,239,227,.16);
+        border-radius: 26px;
+        background: #1c2018;
+        overflow: hidden;
+        box-shadow: 0 34px 120px rgba(0,0,0,.50);
+      }
+      .desktop-bar {
+        height: 58px;
+        background: #11130f;
+        border-bottom: 1px solid rgba(243,239,227,.12);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 24px;
+      }
+      .os-dot { width: 14px; height: 14px; border-radius: 50%; background: #e85b4d; }
+      .os-dot:nth-child(2) { background: #c97b45; }
+      .os-dot:nth-child(3) { background: #b7f34a; }
+      .terminal {
+        margin: 34px;
+        height: calc(100% - 126px);
+        border-radius: 18px;
+        background: #080a07;
+        border: 1px solid rgba(243,239,227,.13);
+        overflow: hidden;
+      }
+      .terminal-title {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px;
+        background: #151812;
+        border-bottom: 1px solid rgba(243,239,227,.10);
+        color: #b9b5a6;
+        font-size: 19px;
+      }
+      .terminal pre {
+        padding: 30px 34px;
+        font-size: 27px;
+        line-height: 1.44;
+        color: #f3efe3;
+        white-space: pre-wrap;
+      }
+      .line { display: block; opacity: 1; }
+      .prompt { color: #b7f34a; }
+      .comment { color: #b9b5a6; }
+      .ok { color: #b7f34a; }
+      .cursor {
+        display: inline-block;
+        width: 14px;
+        height: 29px;
+        margin-left: 4px;
+        transform: translateY(5px);
+        background: #b7f34a;
+      }
+      .browser {
+        margin: 32px;
+        height: calc(100% - 122px);
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid rgba(243,239,227,.14);
+        background: #f3efe3;
+      }
+      .browser-top {
+        height: 72px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 0 24px;
+        background: #1c2018;
+      }
+      .address {
+        height: 40px;
+        flex: 1;
+        border-radius: 8px;
+        background: #11130f;
+        color: #b9b5a6;
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        font-size: 20px;
+      }
+      .page {
+        height: calc(100% - 72px);
+        display: grid;
+        grid-template-columns: 520px 1fr;
+        color: #11130f;
+      }
+      .readme-left {
+        padding: 48px;
+        background: #f3efe3;
+        border-right: 1px solid rgba(17,19,15,.14);
+      }
+      .readme-left img {
+        width: 92px;
+        height: 92px;
+        margin-bottom: 28px;
+      }
+      .readme-left h1 {
+        font-size: 72px;
+        color: #11130f;
+      }
+      .readme-left p {
+        margin-top: 18px;
+        font-size: 24px;
+        line-height: 1.3;
+        color: #4d5047;
+      }
+      .repo-body {
+        padding: 44px 52px;
+        background: #fbf7eb;
+      }
+      .readme-card {
+        border: 1px solid rgba(17,19,15,.12);
+        border-radius: 14px;
+        padding: 28px;
+        margin-bottom: 18px;
+        background: white;
+      }
+      .readme-card h3 {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 38px;
+        margin-bottom: 12px;
+        color: #11130f;
+      }
+      .readme-card p, .readme-card li {
+        font-size: 22px;
+        line-height: 1.32;
+        color: #4d5047;
+      }
+      .dashboard {
+        margin: 32px;
+        height: calc(100% - 122px);
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid rgba(243,239,227,.14);
+        background: #11130f;
+      }
+      .dash-top {
+        height: 82px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 30px;
+        background: #1c2018;
+        border-bottom: 1px solid rgba(243,239,227,.12);
+      }
+      .dash-grid {
+        height: calc(100% - 82px);
+        display: grid;
+        grid-template-columns: 420px 1fr 420px;
+        gap: 22px;
+        padding: 28px;
+      }
+      .panel {
+        background: #1c2018;
+        border: 1px solid rgba(243,239,227,.13);
+        border-radius: 14px;
+        padding: 24px;
+      }
+      .panel h3 {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 38px;
+        margin-bottom: 20px;
+      }
+      .metric {
+        padding: 18px 0;
+        border-top: 1px solid rgba(243,239,227,.10);
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        font-size: 22px;
+      }
+      .big-number {
+        font-size: 78px;
+        font-weight: 800;
+        color: #b7f34a;
+        line-height: 1;
+      }
+      .timeline-item {
+        padding: 16px 0;
+        border-bottom: 1px solid rgba(243,239,227,.10);
+        font-size: 21px;
+        line-height: 1.3;
+      }
+      .wipe {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        opacity: 0;
+      }
+      .wipe span:nth-child(odd) { background: #11130f; }
+      .wipe span:nth-child(even) { background: #b7f34a; }
+      .caption {
+        position: absolute;
+        left: 86px;
+        right: 86px;
+        bottom: 42px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 8;
+        font-size: 22px;
+        color: #b9b5a6;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 13px 16px;
+        border-radius: 7px;
+        color: #f3efe3;
+        background: #1c2018;
+        border: 1px solid #b7f34a;
+        font-size: 19px;
+        font-weight: 800;
+      }
+      .s5-label {
+        display: block;
+        margin-bottom: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="58" data-width="1920" data-height="1080">
+      <div id="scene-1" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="desktop s1-desktop">
+            <div class="desktop-bar"><span class="os-dot"></span><span class="os-dot"></span><span class="os-dot"></span><span class="label" style="margin-left: 16px">PowerShell / local repo</span></div>
+            <div class="terminal">
+              <div class="terminal-title"><span>C:\Users\User\Desktop\polymarketmcp</span><span>recording</span></div>
+              <pre>
+<span class="line l1"><span class="prompt">PS&gt;</span> git status --short</span>
+<span class="line l2"> M README.md     M SECURITY.md     M src/hermes_pm/...</span>
+<span class="line l3"><span class="prompt">PS&gt;</span> .\.venv\Scripts\python.exe -m hermes_pm.cli --no-serve</span>
+<span class="line l4 ok">campaign camp_0mqqkrknd760oin3t done</span>
+<span class="line l5">verdicts={'statistically_weak': True, 'operationally_safe': True, 'compliance_eligible': False}</span>
+<span class="line l6"><span class="prompt">PS&gt;</span> .\.venv\Scripts\hermes-pm-dashboard.exe<span class="cursor"></span></span>
+              </pre>
+            </div>
+          </div>
+          <div class="caption s1-caption"><span>Manual-style local walkthrough</span><span class="badge">PAPER FIRST</span></div>
+        </div>
+      </div>
+
+      <div id="scene-2" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="desktop s2-desktop">
+            <div class="desktop-bar"><span class="os-dot"></span><span class="os-dot"></span><span class="os-dot"></span><span class="label" style="margin-left: 16px">Chrome / dashboard URL</span></div>
+            <div class="browser">
+              <div class="browser-top">
+                <div class="address s2-address">http://127.0.0.1:8787</div>
+              </div>
+              <div class="dashboard">
+                <div class="dash-top">
+                  <div style="display:flex;align-items:center;gap:18px"><img src="assets/hermes-pm-mark-dashboard.svg" style="width:52px;height:52px" alt="mark"><div><div class="label">Hermes-PM Dashboard</div><div style="font-size:24px;color:#f3efe3">local paper campaign</div></div></div>
+                  <div class="badge">LIVE LOCKED</div>
+                </div>
+                <div class="dash-grid">
+                  <div class="panel dash-panel"><h3>Overview</h3><div class="big-number">$1,000</div><div class="metric"><span>Bankroll</span><span class="green">paper</span></div><div class="metric"><span>Ledger</span><span class="green">balanced</span></div><div class="metric"><span>Emergency</span><span class="muted">ready</span></div></div>
+                  <div class="panel dash-panel"><h3>Risk Console</h3><div class="timeline-item"><span class="green">approve</span> only after thesis, counter-thesis, fresh book, and policy caps.</div><div class="timeline-item"><span class="red">reject</span> stale data, ambiguous resolution, tainted evidence, wide spread.</div><div class="timeline-item"><span class="copper">audit</span> links every decision to snapshots and evidence refs.</div></div>
+                  <div class="panel dash-panel"><h3>Market Watch</h3><div class="metric"><span>CLOB book</span><span class="green">fresh</span></div><div class="metric"><span>Spread</span><span>0.02</span></div><div class="metric"><span>Signals</span><span>sanitized</span></div><div class="metric"><span>Mode</span><span class="green">paper</span></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="caption s2-caption"><span>Open the printed localhost URL</span><span class="badge">DASHBOARD</span></div>
+        </div>
+      </div>
+
+      <div id="scene-3" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="desktop s3-desktop">
+            <div class="desktop-bar"><span class="os-dot"></span><span class="os-dot"></span><span class="os-dot"></span><span class="label" style="margin-left: 16px">Chrome / GitHub README preview</span></div>
+            <div class="browser">
+              <div class="browser-top"><div class="address s3-address">https://github.com/HabrielStark/polymarketmcp</div></div>
+              <div class="page">
+                <div class="readme-left">
+                  <img src="assets/hermes-pm-mark-readme.svg" alt="mark" />
+                  <h1 class="display">Hermes-PM</h1>
+                  <p>Local MCP prediction-market control plane with paper execution, deterministic risk gates, and replayable audit logs.</p>
+                </div>
+                <div class="repo-body">
+                  <div class="readme-card repo-card"><h3>Why it is not an API wrapper</h3><p>Market data, risk, fills, learning, dashboard, and audit run inside one local daemon while the agent supervises through MCP.</p></div>
+                  <div class="readme-card repo-card"><h3>Proof, not vibes</h3><ul><li>547 tests collected</li><li>100% line and branch coverage</li><li>pip-audit clean after pinned upgrades</li><li>real Polymarket live-marker tests</li></ul></div>
+                  <div class="readme-card repo-card"><h3>Live boundary</h3><p>Disabled by default, reference-only, compliance-gated, and process-isolated when enabled.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="caption s3-caption"><span>Repository story: clear, sober, portfolio-ready</span><span class="badge">OPEN SOURCE</span></div>
+        </div>
+      </div>
+
+      <div id="scene-4" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content">
+          <div class="desktop s4-desktop">
+            <div class="desktop-bar"><span class="os-dot"></span><span class="os-dot"></span><span class="os-dot"></span><span class="label" style="margin-left: 16px">PowerShell / verification</span></div>
+            <div class="terminal">
+              <div class="terminal-title"><span>final checks</span><span>sequential heavy tests</span></div>
+              <pre>
+<span class="line v1"><span class="prompt">PS&gt;</span> .\.venv\Scripts\python.exe -m pytest -q</span>
+<span class="line v2 ok">544 passed, 3 skipped, 1 warning in 76.19s</span>
+<span class="line v3"><span class="prompt">PS&gt;</span> .\.venv\Scripts\python.exe -m coverage report</span>
+<span class="line v4 ok">TOTAL 3667 statements, 780 branches, 100%</span>
+<span class="line v5"><span class="prompt">PS&gt;</span> pip-audit --path .venv\Lib\site-packages</span>
+<span class="line v6 ok">No known vulnerabilities found</span>
+<span class="line v7"><span class="prompt">PS&gt;</span> $env:HPM_RUN_LIVE_TESTS='1'; pytest -m live -q</span>
+<span class="line v8 ok">3 passed, 544 deselected</span>
+              </pre>
+            </div>
+          </div>
+          <div class="caption s4-caption"><span>Show the commands. Show the gate.</span><span class="badge">VERIFIED</span></div>
+        </div>
+      </div>
+
+      <div id="scene-5" class="scene">
+        <div class="grain" data-layout-ignore></div>
+        <div class="scene-content" style="justify-content:center">
+          <div style="display:grid;grid-template-columns:520px 1fr;gap:72px;align-items:center">
+            <img class="s5-mark" src="assets/hermes-pm-wordmark.svg" alt="Hermes-PM wordmark" style="width:520px;border-radius:18px;border:1px solid rgba(243,239,227,.14)" />
+            <div>
+              <div class="label s5-label">ready to show</div>
+              <h2 class="display s5-title" style="font-size:118px;max-width:900px">A real repo, not a staged clip.</h2>
+              <p class="s5-copy" style="font-size:34px;line-height:1.28;color:#b9b5a6;max-width:880px;margin-top:28px">Run the MCP server, open the dashboard, inspect the README, and keep the live-money path locked until a real operator clears every gate.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wipe" data-layout-ignore><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      function revealLines(selector, t) {
+        tl.from(selector, { opacity: 0, y: 18, duration: .24, stagger: .48, ease: "power2.out" }, t);
+      }
+      function transition(from, to, t) {
+        tl.set(to, { zIndex: 3, visibility: "visible" }, t);
+        tl.set(".wipe", { opacity: 1 }, t);
+        tl.fromTo(".wipe span", { scaleX: 0, transformOrigin: "left" }, { scaleX: 1, duration: .22, stagger: .018, ease: "power4.inOut" }, t);
+        tl.to(from, { opacity: 0, duration: .01 }, t + .28);
+        tl.to(to, { opacity: 1, duration: .01 }, t + .28);
+        tl.set(from, { visibility: "hidden" }, t + .30);
+        tl.fromTo(".wipe span", { scaleX: 1, transformOrigin: "right" }, { scaleX: 0, duration: .26, stagger: .018, ease: "expo.inOut" }, t + .34);
+        tl.set(".wipe", { opacity: 0 }, t + .82);
+      }
+      tl.to(".grain", { x: -38, y: 26, duration: 58, ease: "none" }, 0);
+      tl.from(".s1-desktop", { y: 44, opacity: 0, scale: .985, duration: .62, ease: "expo.out" }, .18);
+      revealLines(".l1,.l2,.l3,.l4,.l5,.l6", .90);
+      tl.from(".s1-caption", { y: 22, opacity: 0, duration: .40, ease: "circ.out" }, 1.2);
+
+      transition("#scene-1", "#scene-2", 10.8);
+      tl.from(".s2-desktop", { x: 52, opacity: 0, scale: .985, duration: .62, ease: "power4.out" }, 11.6);
+      tl.from(".s2-address", { clipPath: "inset(0 100% 0 0)", duration: .90, ease: "steps(18)" }, 12.2);
+      tl.from(".dash-panel", { y: 38, opacity: 0, duration: .48, stagger: .13, ease: "back.out(1.2)" }, 12.8);
+      tl.from(".s2-caption", { y: 22, opacity: 0, duration: .40, ease: "circ.out" }, 13.2);
+
+      transition("#scene-2", "#scene-3", 23.0);
+      tl.from(".s3-desktop", { y: 48, opacity: 0, scale: .982, duration: .66, ease: "expo.out" }, 23.8);
+      tl.from(".s3-address", { clipPath: "inset(0 100% 0 0)", duration: .85, ease: "steps(24)" }, 24.45);
+      tl.from(".readme-left img", { scale: .72, opacity: 0, duration: .44, ease: "back.out(1.5)" }, 24.9);
+      tl.from(".readme-left h1", { x: -42, opacity: 0, duration: .52, ease: "power3.out" }, 25.1);
+      tl.from(".readme-left p", { y: 28, opacity: 0, duration: .46, ease: "sine.out" }, 25.38);
+      tl.from(".repo-card", { y: 36, opacity: 0, duration: .44, stagger: .16, ease: "circ.out" }, 25.2);
+      tl.from(".s3-caption", { y: 22, opacity: 0, duration: .40, ease: "circ.out" }, 26.0);
+
+      transition("#scene-3", "#scene-4", 36.0);
+      tl.from(".s4-desktop", { x: -52, opacity: 0, scale: .985, duration: .64, ease: "power4.out" }, 36.8);
+      revealLines(".v1,.v2,.v3,.v4,.v5,.v6,.v7,.v8", 37.4);
+      tl.from(".s4-caption", { y: 22, opacity: 0, duration: .40, ease: "circ.out" }, 38.2);
+
+      transition("#scene-4", "#scene-5", 50.0);
+      tl.from(".s5-mark", { scale: .88, opacity: 0, duration: .58, ease: "back.out(1.4)" }, 50.8);
+      tl.from(".s5-label", { y: -20, opacity: 0, duration: .34, ease: "power2.out" }, 51.0);
+      tl.from(".s5-title", { x: 62, opacity: 0, duration: .68, ease: "expo.out" }, 51.14);
+      tl.from(".s5-copy", { y: 34, opacity: 0, duration: .52, ease: "sine.out" }, 51.62);
+      tl.to("#scene-5", { opacity: 0, duration: .80, ease: "sine.inOut" }, 57.0);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from hermes_pm.config import load_settings
 from hermes_pm.dashboard.server import _check_token
@@ -51,19 +52,26 @@ def _remote(**kw):
     return load_settings(dashboard_host="0.0.0.0", dashboard_token=TOKEN, **kw)  # noqa: S104
 
 
+def _request(token: str | None = None) -> Request:
+    headers = []
+    if token is not None:
+        headers.append((b"authorization", f"Bearer {token}".encode()))
+    return Request({"type": "http", "method": "GET", "path": "/", "headers": headers})
+
+
 def test_dashboard_localhost_needs_no_token(tmp_path):
     s = load_settings(dashboard_host="127.0.0.1", data_dir=str(tmp_path))
-    _check_token(s, None)  # must not raise on localhost
+    _check_token(s, _request())  # must not raise on localhost
 
 
 def test_dashboard_remote_accepts_exact_token(tmp_path):
-    _check_token(_remote(data_dir=str(tmp_path)), TOKEN)  # must not raise
+    _check_token(_remote(data_dir=str(tmp_path)), _request(TOKEN))  # must not raise
 
 
 @pytest.mark.parametrize("bad", [None, "", "wrong", TOKEN[:-1], TOKEN + "x"])
 def test_dashboard_remote_rejects_bad_token(tmp_path, bad):
     with pytest.raises(HTTPException) as ei:
-        _check_token(_remote(data_dir=str(tmp_path)), bad)
+        _check_token(_remote(data_dir=str(tmp_path)), _request(bad))
     assert ei.value.status_code == 401
 
 
@@ -71,4 +79,11 @@ def test_dashboard_remote_without_configured_token_is_locked(tmp_path):
     # Bound remotely but no token configured -> always denied (fail-closed).
     s = load_settings(dashboard_host="0.0.0.0", data_dir=str(tmp_path))  # noqa: S104
     with pytest.raises(HTTPException):
-        _check_token(s, "anything")
+        _check_token(s, _request(TOKEN))
+
+
+def test_dashboard_query_token_rejected_even_if_correct(tmp_path):
+    s = _remote(data_dir=str(tmp_path))
+    with pytest.raises(HTTPException) as ei:
+        _check_token(s, _request(TOKEN), query_token=TOKEN)
+    assert ei.value.status_code == 400

@@ -8,10 +8,18 @@ import statistics
 
 from hermes_pm.config import Settings
 from hermes_pm.events import EventBus, EventType
+from hermes_pm.metrics.registry import Metrics
 from hermes_pm.models import Market, Signal, SignalStance, SourceType
 from hermes_pm.persistence.db import Database
 from hermes_pm.signals.base import SignalAdapter
-from hermes_pm.signals.external import NewsAdapter, SportsAdapter, WeatherAdapter
+from hermes_pm.signals.external import (
+    CryptoAdapter,
+    MacroAdapter,
+    NewsAdapter,
+    OfficialDataAdapter,
+    SportsAdapter,
+    WeatherAdapter,
+)
 from hermes_pm.signals.social_x import XSocialAdapter
 
 _STANCE_SCORE = {
@@ -23,14 +31,20 @@ _STANCE_SCORE = {
 
 
 class SignalRegistry:
-    def __init__(self, settings: Settings, db: Database, bus: EventBus) -> None:
+    def __init__(
+        self, settings: Settings, db: Database, bus: EventBus, metrics: Metrics | None = None
+    ) -> None:
         self._s = settings
         self.db = db
         self.bus = bus
+        self.metrics = metrics
         self.adapters: dict[str, SignalAdapter] = {
             "x_social": XSocialAdapter(settings),
             "weather": WeatherAdapter(),
             "sports": SportsAdapter(),
+            "crypto": CryptoAdapter(),
+            "macro": MacroAdapter(),
+            "official_data": OfficialDataAdapter(),
             "news": NewsAdapter(),
         }
 
@@ -44,7 +58,12 @@ class SignalRegistry:
         for name, adapter in self.adapters.items():
             if allowed is not None and name not in allowed:
                 continue
-            signals = await adapter.fetch(market, counter=counter)
+            try:
+                signals = await adapter.fetch(market, counter=counter)
+            except Exception:
+                if self.metrics is not None and name == "x_social":
+                    self.metrics.x_stream_disconnects.inc()
+                raise
             for sig in signals:
                 self.db.save_signal(sig)
                 out.append(sig)

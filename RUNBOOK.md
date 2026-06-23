@@ -10,7 +10,7 @@ Examples use Windows PowerShell paths; on Linux/macOS use `./.venv/bin/...`.
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -U pip
+.\.venv\Scripts\python.exe -m pip install -U pip==26.1.2
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
@@ -23,7 +23,7 @@ Optional OS-keychain secret backend:
 Verify the install:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q          # expect: 211 passed
+.\.venv\Scripts\python.exe -m pytest -q          # expect: 544 passed, 3 skipped
 .\.venv\Scripts\python.exe -m ruff check src tests
 ```
 
@@ -150,7 +150,7 @@ eligibility in your jurisdiction.
 
 ## 11. Health-check checklist
 
-- [ ] `pytest -q` → 211 passed
+- [ ] `pytest -q` -> 544 passed, 3 skipped
 - [ ] `ruff check src tests` → clean
 - [ ] Dashboard loads and shows **PAPER** labels
 - [ ] `/metrics` responds

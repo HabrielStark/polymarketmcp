@@ -68,7 +68,14 @@ let CID=null, MARKETS=[], TAB="overview", EVENTS=[];
 const TABS=["overview","watchlist","trades","timeline","sources","risk","learning","promotion"];
 const fmt=(n)=>n==null?"—":(typeof n==="number"?n.toLocaleString(undefined,{maximumFractionDigits:4}):n);
 const cls=(n)=>n>0?"pos":(n<0?"neg":"");
-async function api(p,opt){const r=await fetch(p,opt);if(!r.ok)throw new Error(p+" "+r.status);return r.json();}
+const DASH_TOKEN=localStorage.getItem("hpm_dashboard_token")||"";
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+const h=(v)=>escapeHtml(v);
+const jsq=(v)=>escapeHtml(String(v??"").replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
+const path=(v)=>encodeURIComponent(String(v??""));
+async function api(p,opt={}){opt.headers={...(opt.headers||{})};
+ if(DASH_TOKEN)opt.headers.Authorization=`Bearer ${DASH_TOKEN}`;
+ const r=await fetch(p,opt);if(!r.ok)throw new Error(p+" "+r.status);return r.json();}
 
 function renderTabs(){const n=$("#tabs");n.innerHTML="";TABS.forEach(t=>{const b=document.createElement("button");
  b.textContent=t.toUpperCase();b.className=t===TAB?"active":"";b.onclick=()=>{TAB=t;renderTabs();render();};n.appendChild(b);});}
@@ -98,7 +105,7 @@ async function render(){await loadStatus();const v=$("#view");v.innerHTML="<div 
   else if(TAB==="risk")await vRisk(v);
   else if(TAB==="learning")await vLearning(v);
   else if(TAB==="promotion")await vPromotion(v);
- }catch(e){v.innerHTML=`<div class='card'>error: ${e.message}</div>`;}}
+ }catch(e){v.innerHTML=`<div class='card'>error: ${h(e.message)}</div>`;}}
 
 async function vOverview(v){if(!CID){v.innerHTML="<div class='card'>No campaign.</div>";return;}
  const r=await api(`/api/campaign/${CID}/report`);const p=r.portfolio,m=r.metrics;
@@ -114,7 +121,7 @@ async function vOverview(v){if(!CID){v.innerHTML="<div class='card'>No campaign.
  </div>
  <div class="card"><h3>Open Positions <span class="badge paper">PAPER</span></h3>
   <table><tr><th>Token</th><th>Shares</th><th>Avg</th><th>Mark</th><th>Unrealized</th></tr>
-  ${(p.open_positions||[]).map(x=>`<tr><td>${x.token_id}</td><td>${fmt(x.shares)}</td><td>${fmt(x.avg_price)}</td><td>${fmt(x.mark_price)}</td><td class="${cls(x.unrealized_pnl)}">${fmt(x.unrealized_pnl)}</td></tr>`).join("")||"<tr><td colspan=5 class=muted>none</td></tr>"}
+  ${(p.open_positions||[]).map(x=>`<tr><td>${h(x.token_id)}</td><td>${fmt(x.shares)}</td><td>${fmt(x.avg_price)}</td><td>${fmt(x.mark_price)}</td><td class="${cls(x.unrealized_pnl)}">${fmt(x.unrealized_pnl)}</td></tr>`).join("")||"<tr><td colspan=5 class=muted>none</td></tr>"}
   </table></div>
  <div class="card"><h3>Quality metrics</h3><table>
   <tr><th>Hit rate</th><td>${fmt(m.hit_rate)}</td><th>Profit factor</th><td>${fmt(m.profit_factor)}</td></tr>
@@ -125,22 +132,22 @@ async function vOverview(v){if(!CID){v.innerHTML="<div class='card'>No campaign.
 async function vWatch(v){MARKETS=await api("/api/markets");
  v.innerHTML=`<div class="card"><h3>Market Watchlist</h3><table>
   <tr><th>Market</th><th>Cat</th><th>Tradable</th><th>Resolution</th><th>Order book</th></tr>
-  ${MARKETS.map(m=>`<tr><td>${m.market_id}</td><td>${m.category}</td>
-   <td>${m.tradable?"<span class=tag style='color:var(--grn)'>yes</span>":"<span class=tag style='color:var(--red)'>"+(m.tradable_reasons||[]).join(",")+"</span>"}</td>
+  ${MARKETS.map(m=>`<tr><td>${h(m.market_id)}</td><td>${h(m.category)}</td>
+   <td>${m.tradable?"<span class=tag style='color:var(--grn)'>yes</span>":"<span class=tag style='color:var(--red)'>"+h((m.tradable_reasons||[]).join(","))+"</span>"}</td>
    <td>${m.has_clear_resolution?"clear":"<span class=stale>ambiguous</span>"}</td>
    <td>${m.enable_order_book?"on":"off"}</td></tr>`).join("")}
  </table></div>`;}
 
 async function vTrades(v){if(!CID){v.innerHTML="<div class='card'>No campaign.</div>";return;}
- const orders=await api(`/api/campaign/${CID}/orders`);
+ const orders=await api(`/api/campaign/${path(CID)}/orders`);
  v.innerHTML=`<div class="card"><h3>Trades <span class="badge paper">PAPER</span> — click a row for "why did this happen?"</h3>
   <table><tr><th>Order</th><th>Side</th><th>Status</th><th>Size $</th><th>Filled $</th><th>Fills</th></tr>
-  ${orders.map(o=>`<tr style="cursor:pointer" onclick="tradeDetail('${o.intent_id}')">
-   <td>${o.order_id.slice(0,12)}</td><td>${o.side}</td><td>${o.status}</td>
+  ${orders.map(o=>`<tr style="cursor:pointer" onclick="tradeDetail('${jsq(o.intent_id)}')">
+   <td>${h(String(o.order_id||"").slice(0,12))}</td><td>${h(o.side)}</td><td>${h(o.status)}</td>
    <td>${fmt(o.size_usd)}</td><td>${fmt(o.filled_size_usd)}</td><td>${(o.fills||[]).length}</td></tr>`).join("")
    ||"<tr><td colspan=6 class=muted>no orders yet</td></tr>"}
   </table></div><div id="tradeDetail"></div>`;}
-async function tradeDetail(iid){const d=await api(`/api/campaign/${CID}/trade/${iid}`);
+async function tradeDetail(iid){const d=await api(`/api/campaign/${path(CID)}/trade/${path(iid)}`);
  const rd=(d.risk_decisions[0]||{});
  $("#tradeDetail").innerHTML=`<div class="card"><h3>Why did this happen? <span class="badge paper">PAPER</span></h3>
   <table>
@@ -149,12 +156,12 @@ async function tradeDetail(iid){const d=await api(`/api/campaign/${CID}/trade/${
    <tr><th>Invalidation</th><td>${escapeHtml(d.invalidation_criteria||"")}</td></tr>
    <tr><th>Resolution rules</th><td>${escapeHtml(d.resolution_rules||"")}</td></tr>
    <tr><th>EV / break-even</th><td>${fmt(d.intent.normalized_ev)} / ${fmt(d.intent.break_even_probability)}</td></tr>
-   <tr><th>Risk decision</th><td>${rd.result||"—"} ${rd.violated_rules&&rd.violated_rules.length?"· "+rd.violated_rules.join(", "):""} <span class=muted>(${rd.policy_version||""})</span></td></tr>
+   <tr><th>Risk decision</th><td>${h(rd.result||"—")} ${rd.violated_rules&&rd.violated_rules.length?"· "+h(rd.violated_rules.join(", ")):""} <span class=muted>(${h(rd.policy_version||"")})</span></td></tr>
    <tr><th>Position</th><td>${d.position?("shares "+fmt(d.position.shares)+" @ "+fmt(d.position.avg_price)+" · realized "+fmt(d.position.realized_pnl)):"—"}</td></tr>
   </table>
   <h3 style="margin-top:10px">Evidence (sanitized · untrusted)</h3>
   <table><tr><th>Adapter</th><th>Class</th><th>Stance</th><th>Source ref</th></tr>
-   ${(d.evidence||[]).map(e=>`<tr><td>${e.adapter}</td><td>${e.source_type}</td><td>${e.stance}</td><td class=muted>${e.source_ref}</td></tr>`).join("")||"<tr><td colspan=4 class=muted>none</td></tr>"}</table>
+   ${(d.evidence||[]).map(e=>`<tr><td>${h(e.adapter)}</td><td>${h(e.source_type)}</td><td>${h(e.stance)}</td><td class=muted>${h(e.source_ref)}</td></tr>`).join("")||"<tr><td colspan=4 class=muted>none</td></tr>"}</table>
   <h3 style="margin-top:10px">Entry order-book snapshot + fills (replay source)</h3>
   <pre>${escapeHtml(JSON.stringify({entry_order_book:d.entry_order_book,fills:d.fills},null,2))}</pre></div>`;}
 
@@ -167,47 +174,46 @@ function filterTimeline(q){q=(q||"").toLowerCase();
  const f=q?EVENTS.filter(e=>(e.type+JSON.stringify(e.data)).toLowerCase().includes(q)):EVENTS;
  const tl=$("#timeline");if(tl)tl.innerHTML=renderEvents(f);}
 function evHtml(e){const ts=new Date(e.ts).toLocaleTimeString();
- return `<div class="evt"><span class="t">${ts}</span><span class="ty">${e.type}</span><span>${escapeHtml(JSON.stringify(e.data))}</span></div>`;}
-function escapeHtml(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+ return `<div class="evt"><span class="t">${h(ts)}</span><span class="ty">${h(e.type)}</span><span>${h(JSON.stringify(e.data))}</span></div>`;}
 
 async function vSources(v){MARKETS=MARKETS.length?MARKETS:await api("/api/markets");
- const opts=MARKETS.map(m=>`<option value="${m.market_id}">${m.market_id} · ${m.category}</option>`).join("");
+ const opts=MARKETS.map(m=>`<option value="${h(m.market_id)}">${h(m.market_id)} · ${h(m.category)}</option>`).join("");
  v.innerHTML=`<div class="card"><h3>Source Intelligence</h3>
   <select id="mSel" onchange="loadSig(this.value)">${opts}</select>
   <div id="sigOut" class="muted" style="margin-top:10px">select a market…</div></div>`;
  if(MARKETS[0])loadSig(MARKETS[0].market_id);}
-async function loadSig(mid){const d=await api(`/api/market/${mid}/signals`);const s=d.summary;
+async function loadSig(mid){const d=await api(`/api/market/${path(mid)}/signals`);const s=d.summary;
  $("#sigOut").innerHTML=`<table>
-  <tr><th>Net stance</th><td>${s.stance} (${fmt(s.net_stance_score)})</td><th>Disagreement</th><td>${fmt(s.disagreement)}</td></tr>
+  <tr><th>Net stance</th><td>${h(s.stance)} (${fmt(s.net_stance_score)})</td><th>Disagreement</th><td>${fmt(s.disagreement)}</td></tr>
   <tr><th>Avg trust</th><td>${fmt(s.avg_trust)}</td><th>Tainted</th><td>${fmt(s.suspected_injection_count)}</td></tr>
-  <tr><th>By class</th><td colspan=3>${JSON.stringify(s.by_source_class||{})}</td></tr></table>
+  <tr><th>By class</th><td colspan=3>${h(JSON.stringify(s.by_source_class||{}))}</td></tr></table>
   <h3 style="margin-top:10px">Evidence (sanitized · untrusted)</h3>
   <table><tr><th>Adapter</th><th>Class</th><th>Stance</th><th>Trust</th><th>Source ref</th></tr>
-  ${(d.evidence||[]).map(e=>`<tr><td>${e.adapter}</td><td>${e.source_type}</td><td>${e.stance}</td><td>${fmt(e.trust_score)}</td><td class="muted">${e.source_ref}${e.suspected_injection?" <span class=stale>⚠inj</span>":""}</td></tr>`).join("")}
+  ${(d.evidence||[]).map(e=>`<tr><td>${h(e.adapter)}</td><td>${h(e.source_type)}</td><td>${h(e.stance)}</td><td>${fmt(e.trust_score)}</td><td class="muted">${h(e.source_ref)}${e.suspected_injection?" <span class=stale>⚠inj</span>":""}</td></tr>`).join("")}
   </table>`;}
 
-async function vRisk(v){const a=await api(`/api/audit?campaign_id=${CID}&limit=200`);
+async function vRisk(v){const a=await api(`/api/audit?campaign_id=${path(CID)}&limit=200`);
  const rd=a.events.filter(e=>e.type==="risk_decision");
  v.innerHTML=`<div class="card"><h3>Risk Console · chain ${a.chain.ok?"<span style='color:var(--grn)'>verified ✓</span>":"<span style='color:var(--red)'>BROKEN</span>"}</h3>
   <table><tr><th>Decision</th><th>Result</th><th>Violations / reasons</th><th>Policy</th></tr>
-  ${rd.map(e=>{const o=(e.payload&&e.payload.outputs)||{};return `<tr><td>${(o.decision_id||'').slice(0,12)}</td>
-   <td>${o.result}</td><td class="muted">${(o.violated_rules&&o.violated_rules.join(", "))||(o.reasons&&o.reasons.join("; "))||""}</td>
-   <td class="muted">${o.policy_version||""}</td></tr>`;}).join("")||"<tr><td colspan=4 class=muted>no risk decisions yet</td></tr>"}
+  ${rd.map(e=>{const o=(e.payload&&e.payload.outputs)||{};return `<tr><td>${h(String(o.decision_id||'').slice(0,12))}</td>
+   <td>${h(o.result)}</td><td class="muted">${h((o.violated_rules&&o.violated_rules.join(", "))||(o.reasons&&o.reasons.join("; "))||"")}</td>
+   <td class="muted">${h(o.policy_version||"")}</td></tr>`;}).join("")||"<tr><td colspan=4 class=muted>no risk decisions yet</td></tr>"}
   </table></div>`;}
 
-async function vLearning(v){const ls=await api(`/api/audit?campaign_id=${CID}&limit=200`);
+async function vLearning(v){const ls=await api(`/api/audit?campaign_id=${path(CID)}&limit=200`);
  const lessons=ls.events.filter(e=>e.type==="lesson_written").map(e=>e.payload.outputs);
  const pm=ls.events.filter(e=>e.type==="postmortem").map(e=>e.payload.outputs);
  v.innerHTML=`<div class="card"><h3>Lessons (compact)</h3><table>
   <tr><th>Trigger</th><th>Rule</th><th>Memory</th><th>Support</th></tr>
-  ${lessons.map(l=>`<tr><td>${l.trigger}</td><td>${l.rule}</td><td>${l.memory_target}</td><td>${l.supporting_evidence_count}</td></tr>`).join("")||"<tr><td colspan=4 class=muted>none</td></tr>"}
+  ${lessons.map(l=>`<tr><td>${h(l.trigger)}</td><td>${h(l.rule)}</td><td>${h(l.memory_target)}</td><td>${fmt(l.supporting_evidence_count)}</td></tr>`).join("")||"<tr><td colspan=4 class=muted>none</td></tr>"}
   </table></div>
   <div class="card"><h3>Postmortems</h3><table><tr><th>Outcome</th><th>Failure mode</th><th>Drivers</th></tr>
-  ${pm.map(p=>`<tr><td>${p.outcome}</td><td>${p.failure_mode}</td><td class=muted>${(p.drivers||[]).join(", ")}</td></tr>`).join("")||"<tr><td colspan=3 class=muted>none</td></tr>"}
+  ${pm.map(p=>`<tr><td>${h(p.outcome)}</td><td>${h(p.failure_mode)}</td><td class=muted>${h((p.drivers||[]).join(", "))}</td></tr>`).join("")||"<tr><td colspan=3 class=muted>none</td></tr>"}
   </table></div>`;}
 
 async function vPromotion(v){if(!CID){v.innerHTML="<div class='card'>No campaign.</div>";return;}
- const r=await api(`/api/campaign/${CID}/promotion`);const ve=r.verdicts;
+ const r=await api(`/api/campaign/${path(CID)}/promotion`);const ve=r.verdicts;
  v.innerHTML=`<div class="grid">
   <div class="card"><h3>Statistically weak</h3><div class="kpi ${ve.statistically_weak?'neg':'pos'}">${ve.statistically_weak}</div></div>
   <div class="card"><h3>Operationally safe</h3><div class="kpi ${ve.operationally_safe?'pos':'neg'}">${ve.operationally_safe}</div></div>
@@ -218,15 +224,15 @@ async function vPromotion(v){if(!CID){v.innerHTML="<div class='card'>No campaign
  <div class="card"><h3>Full report</h3><pre>${escapeHtml(JSON.stringify(r,null,2))}</pre></div>`;}
 
 async function emergency(){if(!confirm("Engage EMERGENCY STOP? Cancels open paper orders and freezes campaigns."))return;
- await api("/api/emergency_stop"+(CID?`?campaign_id=${CID}`:""),{method:"POST"});await refresh();}
+ await api("/api/emergency_stop"+(CID?`?campaign_id=${path(CID)}`:""),{method:"POST"});await refresh();}
 async function refresh(){await loadCampaigns();await render();}
-async function exportAudit(){const url=CID?`/api/campaign/${CID}/audit/export`:`/api/audit`;
+async function exportAudit(){const url=CID?`/api/campaign/${path(CID)}/audit/export`:`/api/audit`;
  const data=await api(url);const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
  a.download=`audit_${CID||"all"}.json`;a.click();URL.revokeObjectURL(a.href);}
 
 function connectWS(){const proto=location.protocol==="https:"?"wss":"ws";
- const ws=new WebSocket(`${proto}://${location.host}/ws`);
+ const ws=DASH_TOKEN?new WebSocket(`${proto}://${location.host}/ws`,[`hpm-token-${DASH_TOKEN}`]):new WebSocket(`${proto}://${location.host}/ws`);
  ws.onopen=()=>{$("#connBadge").className="badge ok";$("#connBadge").textContent="WS live";};
  ws.onclose=()=>{$("#connBadge").className="badge warn";$("#connBadge").textContent="WS down";setTimeout(connectWS,1500);};
  ws.onmessage=(m)=>{const e=JSON.parse(m.data);EVENTS.unshift(e);if(EVENTS.length>400)EVENTS.pop();

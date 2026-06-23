@@ -6,7 +6,10 @@ import pytest
 
 from hermes_pm.data.sources import SyntheticSource
 from hermes_pm.events import EventBus
+from hermes_pm.metrics.registry import Metrics
+from hermes_pm.models import Signal, SourceType
 from hermes_pm.persistence.db import Database
+from hermes_pm.signals.base import AdapterMeta, SignalAdapter
 from hermes_pm.signals.registry import SignalRegistry
 
 pytestmark = pytest.mark.asyncio
@@ -40,6 +43,8 @@ async def test_counter_signal_search(settings):
 
 async def test_adapter_metadata_complete(settings):
     reg, _ = await _registry(settings)
+    names = {m["name"] for m in reg.adapter_catalog()}
+    assert {"x_social", "weather", "sports", "crypto", "macro", "official_data", "news"} <= names
     for meta in reg.adapter_catalog():
         for field in ("latency_class", "source_authority", "reliability", "licensing",
                       "suitable_for_realtime"):
@@ -59,3 +64,45 @@ async def test_evidence_sanitized_and_flagged(settings):
     # social signals are lowest trust
     social = [s for s in sigs if s.adapter == "x_social"]
     assert all(s.trust_score <= 0.4 for s in social)
+
+
+class _FailingXAdapter(SignalAdapter):
+    meta = AdapterMeta(
+        name="x_social",
+        source_class=SourceType.SOCIAL,
+        latency_class="delayed",
+        update_frequency_s=60,
+        source_authority="official_api",
+        reliability=0.3,
+        licensing="configured_operator_access",
+        suitable_for_realtime=False,
+    )
+
+    async def fetch(self, market, *, counter: bool = False) -> list[Signal]:
+        raise RuntimeError("x stream down")
+
+
+async def test_x_adapter_failure_increments_disconnect_metric(settings):
+    metrics = Metrics()
+    db = Database(":memory:")
+    reg = SignalRegistry(settings, db, EventBus(), metrics)
+    markets = await SyntheticSource(market_count=1).discover_markets()
+    reg.adapters["x_social"] = _FailingXAdapter()
+    try:
+        with pytest.raises(RuntimeError, match="x stream down"):
+            await reg.gather(markets[0], allowed=["x_social"])
+        assert "hpm_x_stream_disconnects_total 1.0" in metrics.render().decode()
+    finally:
+        db.close()
+
+
+async def test_adapter_failure_without_metrics_reraises(settings):
+    db = Database(":memory:")
+    reg = SignalRegistry(settings, db, EventBus())
+    markets = await SyntheticSource(market_count=1).discover_markets()
+    reg.adapters["x_social"] = _FailingXAdapter()
+    try:
+        with pytest.raises(RuntimeError, match="x stream down"):
+            await reg.gather(markets[0], allowed=["x_social"])
+    finally:
+        db.close()

@@ -61,3 +61,20 @@ async def test_daemon_uses_isolated_process_when_enabled(tmp_path):
         assert d.audit.verify_chain()["ok"] is True
     finally:
         await d.stop()
+
+
+async def test_daemon_parent_vault_stays_locked_when_process_isolated(tmp_path, monkeypatch):
+    monkeypatch.setenv("HPM_SECRET_LIVE_SIGNING_KEY", "PARENT-SHOULD-NOT-LOAD")
+    settings = load_settings(data_dir=str(tmp_path), db_filename="lp3.sqlite3",
+                             live_process_isolation=True, secret_store="env",
+                             reconcile_interval_ms=60000, ws_reconnect_stale_ms=60000)
+    d = TradingDaemon(settings)
+    await d.start()
+    try:
+        status = d.get_system_status()["signing_vault"]
+        assert status["process_isolated"] is True
+        assert status["backend"] == "none"
+        assert status["unlocked"] is False
+        assert "PARENT-SHOULD-NOT-LOAD" not in json.dumps(status)
+    finally:
+        await d.stop()

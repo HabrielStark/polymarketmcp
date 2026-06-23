@@ -25,13 +25,26 @@ class DiscoveryEngine:
     @staticmethod
     def passes_filters(market: Market, filters: dict[str, Any]) -> bool:
         cats = filters.get("categories")
-        if cats and market.category not in cats:
+        if cats and market.category.lower() not in {str(c).lower() for c in cats}:
             return False
         excluded = filters.get("exclude_categories") or []
-        if market.category in excluded:
+        if market.category.lower() in {str(c).lower() for c in excluded}:
             return False
         tags_any = filters.get("tags_any")
-        if tags_any and not (set(tags_any) & set(market.tags)):
+        if tags_any and not ({str(t).lower() for t in tags_any} & {t.lower() for t in market.tags}):
+            return False
+        # FR-MD-005 microstructure filters. Liquidity/volume are treated strictly
+        # (unknown == 0, so a thin/illiquid market is excluded). Spread is applied
+        # only when a two-sided quote is known at discovery time; the risk engine
+        # re-checks live spread against the policy gate at execution.
+        min_liquidity = filters.get("min_liquidity")
+        if min_liquidity is not None and (market.liquidity_usd or 0.0) < min_liquidity:
+            return False
+        min_volume = filters.get("min_volume")
+        if min_volume is not None and (market.volume_usd or 0.0) < min_volume:
+            return False
+        max_spread = filters.get("max_spread")
+        if max_spread is not None and market.spread is not None and market.spread > max_spread:
             return False
         if filters.get("require_order_book", True) and not market.enable_order_book:
             return False

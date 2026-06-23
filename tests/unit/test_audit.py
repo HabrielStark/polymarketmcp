@@ -6,6 +6,7 @@ from hermes_pm.audit.store import AuditStore
 from hermes_pm.models import Campaign, Side, TradeIntent
 from hermes_pm.persistence.db import Database
 from hermes_pm.persistence.redact import redact
+from hermes_pm.util.hashing import hash_obj
 
 
 def test_chain_verifies(db):
@@ -50,10 +51,14 @@ def test_redaction_masks_secrets():
 
 def test_export_redacts_and_verifies(db):
     au = AuditStore(db)
-    au.append("evt", inputs={"api_key": "SECRET123"}, campaign_id="c1")
+    raw = {"api_key": "SECRET123"}
+    au.append("evt", inputs=raw, campaign_id="c1")
     exp = au.export("c1")
     assert exp["chain_verification"]["ok"]
     assert "SECRET123" not in str(exp)
+    exported_event = exp["events"][0]
+    assert exported_event["input_hash"] == hash_obj(redact(raw))
+    assert exported_event["input_hash"] != hash_obj(raw)
 
 
 def test_audit_persists_across_reopen(tmp_path):

@@ -7,6 +7,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/HabrielStark/polymarketmcp/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/HabrielStark/polymarketmcp/ci.yml?branch=main&label=CI&style=flat-square"></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.11-11130f?style=flat-square">
+  <img alt="Coverage" src="https://img.shields.io/badge/coverage-100%25-b7f34a?style=flat-square">
+  <img alt="Mode" src="https://img.shields.io/badge/live-locked_by_default-e85b4d?style=flat-square">
+  <img alt="License" src="https://img.shields.io/github/license/HabrielStark/polymarketmcp?style=flat-square">
+</p>
+
+<p align="center">
   <a href="#install">Install</a> |
   <a href="#quickstart">Quickstart</a> |
   <a href="#demo-videos">Demo videos</a> |
@@ -32,15 +40,30 @@ Reference implementation of **PM-MCP-SRS-001** (`hermes_mcp_prediction_market_sr
 
 ---
 
+## At a glance
+
+| What it is | What makes it different | Proof surface |
+|------------|-------------------------|---------------|
+| A local MCP control plane for prediction-market research and paper execution. | The LLM reasons; the daemon owns market data, order-book state, risk, fills, audit, and replay. | 547 collected tests, 100% line+branch coverage, clean dependency audit, live-gated public Polymarket API checks. |
+
+| Paper execution | Risk gates | Audit trail | Dashboard | Live boundary |
+|-----------------|------------|-------------|-----------|---------------|
+| Pessimistic fills, partials, double-entry ledger, replayable campaign state. | Deterministic approvals/rejections with source freshness, spread, liquidity, category, and evidence rules. | Append-only hash chain with redaction and integrity verification. | Local FastAPI UI with PAPER labelling, timelines, sources, risk, learning, and promotion. | Disabled by default; reference-only, compliance-gated, and process-isolated when enabled. |
+
+---
+
 ## Demo videos
 
-The repository includes two rendered 1080p/60fps MP4 demos plus the HyperFrames
-source compositions used to produce them.
+The preview images below are animated GIFs. Click either preview or the **Play
+full MP4** link to open the actual 1080p/60fps video through a direct `video/mp4`
+CDN URL. GitHub's normal `blob` page can show "Sorry, we can't show files this
+big" for MP4s, so the playable links intentionally bypass the blob viewer.
 
-| Demo | What it shows | File |
-|------|---------------|------|
-| ![Motion demo poster](assets/brand/hermes-pm-motion-poster.png) | A polished motion-graphics overview of the product story, architecture lanes, risk loop, proof gates, and open-source positioning. | [`media/videos/hermes-pm-motion-demo.mp4`](media/videos/hermes-pm-motion-demo.mp4) |
-| ![Terminal walkthrough poster](assets/brand/hermes-pm-terminal-poster.png) | A screen-recording-style walkthrough: terminal commands, localhost dashboard, GitHub README preview, and final verification commands. | [`media/videos/hermes-pm-terminal-walkthrough.mp4`](media/videos/hermes-pm-terminal-walkthrough.mp4) |
+| Motion-graphics overview | Terminal / browser walkthrough |
+|--------------------------|--------------------------------|
+| <a href="https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-motion-demo.mp4"><img src="assets/brand/hermes-pm-motion-preview.gif" alt="Hermes-PM motion demo animated preview"></a> | <a href="https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-terminal-walkthrough.mp4"><img src="assets/brand/hermes-pm-terminal-preview.gif" alt="Hermes-PM terminal walkthrough animated preview"></a> |
+| Product story, architecture lanes, risk loop, proof gates, and open-source positioning. | Manual-style commands, localhost dashboard, GitHub README preview, and final verification commands. |
+| [Play full MP4](https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-motion-demo.mp4) · [Repo file](media/videos/hermes-pm-motion-demo.mp4) · 42s · 1920x1080 · 60fps | [Play full MP4](https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-terminal-walkthrough.mp4) · [Repo file](media/videos/hermes-pm-terminal-walkthrough.mp4) · 58s · 1920x1080 · 60fps |
 
 Brand and video source files live under [`assets/brand`](assets/brand) and
 [`media`](media). The visual system is documented in [`DESIGN.md`](DESIGN.md).

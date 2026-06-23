@@ -10,6 +10,17 @@ source projects used to build them.
 | [`videos/hermes-pm-motion-demo.mp4`](videos/hermes-pm-motion-demo.mp4) | 42s | 1920x1080 | 60 | Polished motion-graphics product overview. |
 | [`videos/hermes-pm-terminal-walkthrough.mp4`](videos/hermes-pm-terminal-walkthrough.mp4) | 58s | 1920x1080 | 60 | Screen-recording-style terminal and browser walkthrough. |
 
+GitHub's normal blob viewer may refuse to preview MP4 files and show "Sorry, we
+can't show files that are this big right now." Use the direct playable URLs:
+
+- Motion demo:
+  `https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-motion-demo.mp4`
+- Terminal walkthrough:
+  `https://cdn.jsdelivr.net/gh/HabrielStark/polymarketmcp@main/media/videos/hermes-pm-terminal-walkthrough.mp4`
+
+The README uses animated GIF previews from `assets/brand` so the demos are
+visibly video-like on the repository landing page.
+
 ## Source projects
 
 | Project | Description |

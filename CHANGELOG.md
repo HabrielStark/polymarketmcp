@@ -10,6 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Brand system assets for Hermes-PM: minimal SVG mark, wordmark, social card,
   generated key visual, video posters, and storyboard contact sheets.
+- Animated GIF previews for both demos, plus direct `video/mp4` CDN links that
+  bypass GitHub's MP4 blob-viewer limitation.
 - Two rendered portfolio demos under `media/videos`: a 42-second motion-graphics
   overview and a 58-second terminal/browser walkthrough, both rendered at
   1920x1080, 60fps.
